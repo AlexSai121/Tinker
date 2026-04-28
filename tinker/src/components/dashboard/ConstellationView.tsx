@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
+import * as THREE from "three";
 import ForceGraph3D, { type ForceGraph3DInstance, type LinkObject, type NodeObject } from "3d-force-graph";
 import {
   ArrowUpRight,
@@ -377,9 +378,6 @@ export function ConstellationView() {
         .backgroundColor("#12110F")
         .showNavInfo(false)
         .nodeId("id")
-        .nodeVal("val")
-        .nodeResolution(18)
-        .nodeOpacity(0.94)
         .linkResolution(8)
         .linkOpacity(0.42)
         .linkCurvature(0.08)
@@ -421,10 +419,52 @@ export function ConstellationView() {
 
     graph
       .graphData(graphData)
-      .nodeColor((node) => {
+      .nodeThreeObject((node) => {
+        const graphNode = node as GraphNode;
         const normalized = query.trim().toLowerCase();
-        const isMatch = normalized && [node.name, node.shopName].some((value) => value.toLowerCase().includes(normalized));
-        return isMatch ? "#FAF9F5" : node.color;
+        const isMatch = normalized && [graphNode.name, graphNode.shopName].some((value) => value.toLowerCase().includes(normalized));
+        
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d")!;
+        
+        context.font = "500 14px Inter, sans-serif";
+        const textWidth = context.measureText(graphNode.name).width;
+        
+        canvas.width = textWidth + 24;
+        canvas.height = 28;
+        
+        const ctx = canvas.getContext("2d")!;
+        ctx.font = "500 14px Inter, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        
+        if (isMatch) {
+          ctx.fillStyle = "rgba(250, 249, 245, 0.15)";
+        } else {
+          ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+        }
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        if (isMatch) {
+          ctx.strokeStyle = "rgba(250, 249, 245, 0.8)";
+        } else {
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+        }
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = isMatch ? "#FAF9F5" : "rgba(250, 249, 245, 0.85)";
+        ctx.fillText(graphNode.name, canvas.width / 2, canvas.height / 2);
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.needsUpdate = true;
+        
+        const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+        const sprite = new THREE.Sprite(material);
+        
+        sprite.scale.set(canvas.width * 0.45, canvas.height * 0.45, 1);
+        return sprite;
       })
       .linkColor((link) => {
         if (link.id === selectedBridgeId) {

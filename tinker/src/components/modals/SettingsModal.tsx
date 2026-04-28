@@ -134,7 +134,7 @@ function SettingsNavButton({
     <button
       type="button"
       onClick={onClick}
-      className={cn("settings-nav-button", active && "is-active glass-button")}
+      className={cn("settings-nav-button", active && "is-active")}
     >
       <span className="flex min-w-0 items-center gap-3">
         <span className="shrink-0 text-[var(--ui-text-3)]">{icon}</span>
@@ -171,7 +171,7 @@ function ThemeModeButton({
       className={cn(
         "rounded-[var(--ui-radius-lg)] border px-4 py-4 text-left transition-all",
         active
-          ? "glass-button border-[color-mix(in_srgb,var(--ui-accent)_38%,var(--ui-border-strong))] text-[var(--ui-text-1)]"
+          ? "border-[var(--ui-accent)] bg-[var(--ui-accent-soft)] text-[var(--ui-text-1)]"
           : "border-[var(--ui-border)] bg-[var(--ui-surface-1)] text-[var(--ui-text-2)] hover:border-[var(--ui-border-strong)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text-1)]"
       )}
     >
@@ -311,17 +311,7 @@ export function SettingsModal() {
               </SmartTooltip>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-2 lg:grid-cols-1">
-              <div className="ui-status ui-status-accent justify-center lg:justify-start">
-                {watchedTheme.charAt(0).toUpperCase() + watchedTheme.slice(1)} theme
-              </div>
-              <div className="ui-status justify-center lg:justify-start">
-                {watchedDensity.charAt(0).toUpperCase() + watchedDensity.slice(1)} density
-              </div>
-              <div className="ui-status justify-center lg:justify-start">
-                {watchedReviewDay.charAt(0).toUpperCase() + watchedReviewDay.slice(1)} review
-              </div>
-            </div>
+
 
             <div className="mt-5 settings-nav">
               {sections.map((entry) => (
@@ -431,7 +421,6 @@ export function SettingsModal() {
                       type="button"
                       onClick={() => openModal({ type: "export" })}
                       variant="primary"
-                      className="glass-button"
                       data-testid="btn-open-export-from-settings"
                     >
                       Open Export Dialog
@@ -440,7 +429,7 @@ export function SettingsModal() {
                       type="button"
                       onClick={() => handleChooseImport("merge")}
                       variant="surface"
-                      className="inline-flex items-center gap-2 glass-button"
+                      className="inline-flex items-center gap-2"
                       data-testid="btn-import-merge"
                     >
                       <Upload className="h-4 w-4" />
@@ -450,7 +439,7 @@ export function SettingsModal() {
                       type="button"
                       onClick={() => handleChooseImport("replace")}
                       variant="surface"
-                      className="inline-flex items-center gap-2 glass-button"
+                      className="inline-flex items-center gap-2"
                       data-testid="btn-import-replace"
                     >
                       <Upload className="h-4 w-4" />
@@ -607,7 +596,7 @@ export function SettingsModal() {
               <AnimatedButton type="button" onClick={closeModal} variant="ghost">
                 Cancel
               </AnimatedButton>
-              <AnimatedButton type="submit" disabled={isSubmitting || upsertAppSetting.isPending} variant="primary" className="glass-button" data-testid="btn-save-settings">
+              <AnimatedButton type="submit" disabled={isSubmitting || upsertAppSetting.isPending} variant="primary" data-testid="btn-save-settings">
                 {upsertAppSetting.isPending ? "Saving..." : "Save Settings"}
               </AnimatedButton>
                 </div>

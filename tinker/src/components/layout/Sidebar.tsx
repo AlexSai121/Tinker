@@ -84,14 +84,12 @@ function ShopAccordion({
   const [shopMenuOpen, setShopMenuOpen] = useState(false);
   const [openWorkbenchMenuId, setOpenWorkbenchMenuId] = useState<string | null>(null);
   const { data: workbenches, isLoading, isError } = useWorkbenches(shop.id);
-  const {
-    activeWorkbenchId,
-    setActiveWorkbench,
-    setActiveShop,
-    activeShopId,
-    setSidebarOpen,
-    setViewMode,
-  } = useUiStore();
+  const activeWorkbenchId = useUiStore((s) => s.activeWorkbenchId);
+  const activeShopId = useUiStore((s) => s.activeShopId);
+  const setActiveWorkbench = useUiStore((s) => s.setActiveWorkbench);
+  const setActiveShop = useUiStore((s) => s.setActiveShop);
+  const setSidebarOpen = useUiStore((s) => s.setSidebarOpen);
+  const setViewMode = useUiStore((s) => s.setViewMode);
   const openModal = useUiStore((s) => s.openModal);
   const updateShop = useUpdateShop();
   const deleteShop = useDeleteShop();
@@ -267,8 +265,8 @@ function ShopAccordion({
             <div className="rounded border border-red-900/40 bg-red-950/10 px-2 py-2 text-xs text-red-300">
               Couldn't load projects for this workshop.
             </div>
-          ) : workbenches && workbenches.length > 0 ? (
-            workbenches.map((wb) => (
+          ) : workbenches && workbenches.filter(wb => !wb.name.includes("[ARCHIVED]")).length > 0 ? (
+            workbenches.filter(wb => !wb.name.includes("[ARCHIVED]")).map((wb) => (
               <div key={wb.id} className="group relative flex items-center gap-1">
                 <button
                   type="button"

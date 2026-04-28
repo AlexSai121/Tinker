@@ -1,29 +1,36 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useUiStore } from "../../stores/uiStore";
-import { CreateShopModal } from "./CreateShopModal";
-import { CreateWorkbenchModal } from "./CreateWorkbenchModal";
-import { CreateProjectModal } from "./CreateProjectModal";
-import { CreateBridgeModal } from "./CreateBridgeModal";
-import { CreateLockerModal } from "./CreateLockerModal";
-import { SkillEvidenceModal } from "./SkillEvidenceModal";
-import { ExportModal } from "./ExportModal";
-import { SettingsModal } from "./SettingsModal";
-import { MediaPreviewModal } from "./MediaPreviewModal";
+
+const CreateShopModal = lazy(() => import("./CreateShopModal").then((module) => ({ default: module.CreateShopModal })));
+const CreateWorkbenchModal = lazy(() => import("./CreateWorkbenchModal").then((module) => ({ default: module.CreateWorkbenchModal })));
+const CreateProjectModal = lazy(() => import("./CreateProjectModal").then((module) => ({ default: module.CreateProjectModal })));
+const CreateBridgeModal = lazy(() => import("./CreateBridgeModal").then((module) => ({ default: module.CreateBridgeModal })));
+const CreateLockerModal = lazy(() => import("./CreateLockerModal").then((module) => ({ default: module.CreateLockerModal })));
+const SkillEvidenceModal = lazy(() => import("./SkillEvidenceModal").then((module) => ({ default: module.SkillEvidenceModal })));
+const ExportModal = lazy(() => import("./ExportModal").then((module) => ({ default: module.ExportModal })));
+const SettingsModal = lazy(() => import("./SettingsModal").then((module) => ({ default: module.SettingsModal })));
+const MediaPreviewModal = lazy(() => import("./MediaPreviewModal").then((module) => ({ default: module.MediaPreviewModal })));
 
 function ModalContent({ type, payload }: { type: string; payload?: Record<string, unknown> }) {
-  switch (type) {
-    case "createShop": return <CreateShopModal />;
-    case "createWorkbench": return <CreateWorkbenchModal payload={payload} />;
-    case "createProject": return <CreateProjectModal payload={payload} />;
-    case "createBridge": return <CreateBridgeModal payload={payload} />;
-    case "createLocker": return <CreateLockerModal />;
-    case "skillEvidence": return <SkillEvidenceModal payload={payload} />;
-    case "export": return <ExportModal />;
-    case "settings": return <SettingsModal />;
-    case "mediaPreview": return <MediaPreviewModal payload={payload} />;
-    default: return null;
-  }
+  return (
+    <Suspense fallback={null}>
+      {(() => {
+        switch (type) {
+          case "createShop": return <CreateShopModal />;
+          case "createWorkbench": return <CreateWorkbenchModal payload={payload} />;
+          case "createProject": return <CreateProjectModal payload={payload} />;
+          case "createBridge": return <CreateBridgeModal payload={payload} />;
+          case "createLocker": return <CreateLockerModal />;
+          case "skillEvidence": return <SkillEvidenceModal payload={payload} />;
+          case "export": return <ExportModal />;
+          case "settings": return <SettingsModal />;
+          case "mediaPreview": return <MediaPreviewModal payload={payload} />;
+          default: return null;
+        }
+      })()}
+    </Suspense>
+  );
 }
 
 export function ModalRoot() {

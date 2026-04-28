@@ -33,6 +33,10 @@ export default defineConfig({
             return;
           }
 
+          if (id.includes("3d-force-graph") || id.includes("three")) {
+            return "vendor-graph";
+          }
+
           if (id.includes("react-konva") || id.includes("konva")) {
             return "vendor-canvas";
           }

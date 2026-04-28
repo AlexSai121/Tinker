@@ -37,7 +37,20 @@ export function useResponsiveLayout() {
     const tabletQuery = window.matchMedia("(max-width: 1100px)");
     const compactQuery = window.matchMedia("(max-width: 767px)");
     const coarseQuery = window.matchMedia("(pointer: coarse)");
-    const update = () => setState(getResponsiveLayoutState());
+    const update = () => {
+      const nextState = getResponsiveLayoutState();
+      setState((current) => {
+        if (
+          current.isTabletLayout === nextState.isTabletLayout &&
+          current.isCompactLayout === nextState.isCompactLayout &&
+          current.isCoarsePointer === nextState.isCoarsePointer
+        ) {
+          return current;
+        }
+
+        return nextState;
+      });
+    };
 
     update();
 

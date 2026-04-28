@@ -1,13 +1,13 @@
 import React, { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppShell } from "./components/layout/AppShell";
-import { WorkbenchCanvas } from "./components/canvas/WorkbenchCanvas";
-import { ProjectView } from "./components/workbench/ProjectView";
 import { EmptyState } from "./components/shared/EmptyState";
 import { SkeletonBlock } from "./components/shared/Skeleton";
 import { ViewTransition } from "./components/shared/ViewTransition";
 import { useUiStore } from "./stores/uiStore";
 
+const WorkbenchCanvas = lazy(() => import("./components/canvas/WorkbenchCanvas").then((module) => ({ default: module.WorkbenchCanvas })));
+const ProjectView = lazy(() => import("./components/workbench/ProjectView").then((module) => ({ default: module.ProjectView })));
 const ScarMapView = lazy(() => import("./components/dashboard/ScarMapView").then((module) => ({ default: module.ScarMapView })));
 const ConstellationView = lazy(() => import("./components/dashboard/ConstellationView").then((module) => ({ default: module.ConstellationView })));
 const SkillPortfolio = lazy(() => import("./components/dashboard/SkillPortfolio").then((module) => ({ default: module.SkillPortfolio })));
@@ -31,7 +31,10 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { viewMode, activeShopId, activeWorkbenchId, searchQuery } = useUiStore();
+  const viewMode = useUiStore((s) => s.viewMode);
+  const activeShopId = useUiStore((s) => s.activeShopId);
+  const activeWorkbenchId = useUiStore((s) => s.activeWorkbenchId);
+  const searchQuery = useUiStore((s) => s.searchQuery);
   const trimmedSearch = searchQuery.trim();
   const dashboardFallback = (
     <div className="grid h-full gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
@@ -74,7 +77,11 @@ function AppContent() {
         );
       }
 
-      return <WorkbenchCanvas shopId={activeShopId} />;
+      return (
+        <Suspense fallback={dashboardFallback}>
+          <WorkbenchCanvas shopId={activeShopId} />
+        </Suspense>
+      );
     }
 
     if (viewMode === "project") {
@@ -90,7 +97,11 @@ function AppContent() {
         );
       }
 
-      return <ProjectView workbenchId={activeWorkbenchId} />;
+      return (
+        <Suspense fallback={dashboardFallback}>
+          <ProjectView workbenchId={activeWorkbenchId} />
+        </Suspense>
+      );
     }
 
     if (viewMode === "scarMap") {

@@ -34,7 +34,10 @@ export const WorkbenchCard = memo(function WorkbenchCard({
   // Reference for debouncing
   const timeoutRef = useRef<number | null>(null);
 
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback((event?: any) => {
+    if (event && event.evt && "button" in event.evt && event.evt.button !== 0) {
+      return;
+    }
     setActiveWorkbench(workbench.id);
     void updateDust.mutateAsync({ id: workbench.id, date: new Date() });
   }, [setActiveWorkbench, updateDust, workbench.id]);

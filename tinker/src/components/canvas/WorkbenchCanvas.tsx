@@ -68,7 +68,10 @@ export function WorkbenchCanvas({ shopId }: { shopId: string }) {
   });
   const [selectedBridgeId, setSelectedBridgeId] = useState<string | null>(null);
   const [projectMenu, setProjectMenu] = useState<{ workbenchId: string; x: number; y: number } | null>(null);
-  const { x, y, scale, setCamera, pan } = useCanvasStore();
+  const x = useCanvasStore((s) => s.x);
+  const y = useCanvasStore((s) => s.y);
+  const scale = useCanvasStore((s) => s.scale);
+  const setCamera = useCanvasStore((s) => s.setCamera);
   const openModal = useUiStore((s) => s.openModal);
   const setActiveShop = useUiStore((s) => s.setActiveShop);
   const setActiveWorkbench = useUiStore((s) => s.setActiveWorkbench);
@@ -169,12 +172,11 @@ export function WorkbenchCanvas({ shopId }: { shopId: string }) {
     setCamera(newCamera.x, newCamera.y, newCamera.scale);
   }, [x, y, scale, setCamera]);
 
-  const handleDragMove = useCallback((e: KonvaEventObject<DragEvent>) => {
-    // Only pan the stage if the stage itself is being dragged, not a card
+  const handleDragEnd = useCallback((e: KonvaEventObject<DragEvent>) => {
     if (e.target === e.target.getStage()) {
-      pan(e.evt.movementX, e.evt.movementY);
+      setCamera(e.target.x(), e.target.y(), scale);
     }
-  }, [pan]);
+  }, [scale, setCamera]);
 
   const handleDblClick = useCallback((e: KonvaEventObject<MouseEvent | TouchEvent>) => {
     const stage = e.target.getStage();
@@ -503,7 +505,7 @@ export function WorkbenchCanvas({ shopId }: { shopId: string }) {
         height={800}
         onWheel={handleWheel}
         draggable
-        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
         onDblClick={handleDblClick}
         onDblTap={handleDblClick}
         onMouseDown={() => setProjectMenu(null)}

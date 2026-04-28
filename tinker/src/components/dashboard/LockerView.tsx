@@ -90,8 +90,9 @@ export function LockerView() {
     });
   }, [activeTab, lockerItems, searchQuery, typeFilter]);
 
+  const archivedWorkbenches = useMemo(() => workbenches.filter(wb => wb.name.includes("[ARCHIVED]")), [workbenches]);
   const activeItemsCount = useMemo(() => lockerItems.filter((item) => !item.isArchived).length, [lockerItems]);
-  const archivedItemsCount = useMemo(() => lockerItems.filter((item) => item.isArchived).length, [lockerItems]);
+  const archivedItemsCount = useMemo(() => lockerItems.filter((item) => item.isArchived).length + archivedWorkbenches.length, [lockerItems, archivedWorkbenches]);
   const staleCount = staleItems.length;
 
   const handleArchive = useCallback(async (itemId: string) => {
@@ -232,18 +233,33 @@ export function LockerView() {
         </div>
       </Panel>
 
-      {filteredItems.length === 0 ? (
+      {(filteredItems.length === 0 && (activeTab !== "archived" || archivedWorkbenches.length === 0)) ? (
         <EmptyState
-          title={activeTab === "active" ? "No active locker items" : "No archived locker items"}
+          title={activeTab === "active" ? "No active locker items" : "No archived items"}
           description={
             activeTab === "active"
               ? "Save something to the locker from the toolbar and it will land here."
-              : "Archived references will show up here once they go stale or get rescued."
+              : "Archived references and projects will show up here."
           }
           className="min-h-[320px]"
         />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
+          {activeTab === "archived" && archivedWorkbenches.map((wb) => (
+            <article key={wb.id} className="ui-panel p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="ui-kicker">Project</div>
+                  <h2 className="mt-1 text-lg font-semibold text-[var(--ui-text-1)]">{wb.name.replace("[ARCHIVED]", "").trim()}</h2>
+                  {wb.description && <p className="mt-2 text-sm text-[var(--ui-text-2)]">{wb.description}</p>}
+                </div>
+                <span className="ui-status">Archived</span>
+              </div>
+              <div className="mt-3 text-xs text-[var(--ui-text-3)]">
+                Created {new Date(wb.createdAt).toLocaleDateString()} · Last Opened {new Date(wb.lastOpenedAt ?? wb.createdAt).toLocaleDateString()}
+              </div>
+            </article>
+          ))}
           {filteredItems.map((item) => {
             const daysUntilStale = getDaysUntilStale(item);
             const urgency = getUrgencyStyles(daysUntilStale);

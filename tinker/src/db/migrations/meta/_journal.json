@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1777044536868,
+      "tag": "0000_jazzy_harpoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777092000000,
+      "tag": "0001_skills_workbench",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777113900000,
+      "tag": "0002_skill_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777117500000,
+      "tag": "0003_project_and_skill_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777122000000,
+      "tag": "0004_scar_notes_and_skill_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777130400000,
+      "tag": "0005_bridge_and_locker_metadata",
+      "breakpoints": true
+    }
+  ]
+}

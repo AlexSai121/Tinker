@@ -1,0 +1,10 @@
+{
+  "name": "tinker-workflow",
+  "private": true,
+  "scripts": {
+    "install": "npm install --prefix tinker",
+    "dev": "npm run dev --prefix tinker",
+    "build": "npm run build --prefix tinker",
+    "test": "npm run test --prefix tinker"
+  }
+}

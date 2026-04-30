@@ -161,6 +161,7 @@ export function SkillPanel({ workbenchId }: { workbenchId: string }) {
             onChange={(event) => setNewSkillName(event.target.value)}
             placeholder="E.g., Jig setup..."
             className="input text-sm py-1.5 flex-1"
+            data-testid="input-skill-name"
           />
           <button
             type="submit"

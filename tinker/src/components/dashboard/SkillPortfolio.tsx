@@ -83,7 +83,7 @@ export function SkillPortfolio() {
         title="Skill Portfolio"
         description="Proof that practice stuck long enough to become something you can carry forward."
         actions={
-        <button type="button" onClick={handlePdfExport} className="btn btn-primary inline-flex items-center gap-2 self-start shrink-0">
+        <button type="button" onClick={handlePdfExport} className="btn btn-primary inline-flex items-center gap-2 self-start shrink-0" data-testid="btn-export-skill-portfolio">
           <Download className="h-4 w-4" />
           Export PDF
         </button>

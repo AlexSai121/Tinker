@@ -6,6 +6,19 @@ import { deleteRow, getTable, insertRow, setTable, updateRow } from "@/lib/brows
 import { DUST_THRESHOLD_DAYS } from "@/utils/constants";
 import { withDataFallback } from "./backend";
 
+const WORKBENCH_ARCHIVE_MARKER = "[ARCHIVED]";
+
+export function isWorkbenchArchived(workbench: Pick<Workbench, "name">): boolean {
+  return workbench.name.includes(WORKBENCH_ARCHIVE_MARKER);
+}
+
+export function getWorkbenchDisplayName(name: string): string {
+  return name
+    .replaceAll(WORKBENCH_ARCHIVE_MARKER, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function calculateDustLevel(
   workbench: Pick<Workbench, "createdAt" | "updatedAt" | "lastOpenedAt">,
   referenceDate: Date = new Date(),
@@ -44,9 +57,12 @@ export async function getWorkbenchById(id: string): Promise<Workbench | undefine
 export async function getWorkbenchesByShop(shopId: string): Promise<Workbench[]> {
   return withDataFallback(
     () => getTable<Workbench>("workbenches")
-      .filter((workbench) => workbench.shopId === shopId)
+      .filter((workbench) => workbench.shopId === shopId && !isWorkbenchArchived(workbench))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
-    () => db.select().from(workbenches).where(eq(workbenches.shopId, shopId)).orderBy(desc(workbenches.createdAt))
+    async () => {
+      const rows = await db.select().from(workbenches).where(eq(workbenches.shopId, shopId)).orderBy(desc(workbenches.createdAt));
+      return rows.filter((workbench) => !isWorkbenchArchived(workbench));
+    }
   );
 }
 
@@ -141,14 +157,38 @@ export async function archiveWorkbench(id: string): Promise<Workbench> {
   return withDataFallback(
     () => updateRow<Workbench>("workbenches", id, (workbench) => ({
       ...workbench,
-      name: workbench.name.includes("[ARCHIVED]") ? workbench.name : `${workbench.name} [ARCHIVED]`,
+      name: isWorkbenchArchived(workbench) ? workbench.name : `${workbench.name} ${WORKBENCH_ARCHIVE_MARKER}`,
       updatedAt: new Date(),
     })),
     async () => {
       const result = await db
         .update(workbenches)
         .set({
-          name: wb.name.includes("[ARCHIVED]") ? wb.name : `${wb.name} [ARCHIVED]`,
+          name: isWorkbenchArchived(wb) ? wb.name : `${wb.name} ${WORKBENCH_ARCHIVE_MARKER}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(workbenches.id, id))
+        .returning();
+      return result[0];
+    }
+  );
+}
+
+export async function restoreWorkbench(id: string): Promise<Workbench> {
+  const wb = await getWorkbenchById(id);
+  if (!wb) throw new Error("Workbench not found");
+
+  return withDataFallback(
+    () => updateRow<Workbench>("workbenches", id, (workbench) => ({
+      ...workbench,
+      name: getWorkbenchDisplayName(workbench.name) || "Untitled Project",
+      updatedAt: new Date(),
+    })),
+    async () => {
+      const result = await db
+        .update(workbenches)
+        .set({
+          name: getWorkbenchDisplayName(wb.name) || "Untitled Project",
           updatedAt: new Date(),
         })
         .where(eq(workbenches.id, id))

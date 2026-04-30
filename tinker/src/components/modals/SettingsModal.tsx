@@ -3,13 +3,23 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { nanoid } from "nanoid";
-import { Check, ChevronRight, Database, Info, Palette, SlidersHorizontal, Upload, X } from "lucide-react";
+import { Check, ChevronRight, Database, Info, Palette, RotateCcw, SlidersHorizontal, Upload, X } from "lucide-react";
 import { useUiStore } from "../../stores/uiStore";
 import { useAppSetting, useAppSettings, useUpsertAppSetting } from "../../hooks/useAppSettings";
-import { defaultPreferences, parsePreferences, REVIEW_DAY_OPTIONS, THEME_OPTIONS } from "../../utils/preferences";
+import {
+  defaultPreferences,
+  DEFAULT_GUI_SCALE,
+  HEX_COLOR_PATTERN,
+  MAX_GUI_SCALE,
+  MIN_GUI_SCALE,
+  parsePreferences,
+  REVIEW_DAY_OPTIONS,
+  THEME_OPTIONS,
+} from "../../utils/preferences";
 import { SHOP_BACKGROUNDS } from "../../utils/constants";
 import { isElectronRuntime } from "../../lib/runtime";
 import { electron } from "../../lib/electron";
+import { getAccentTheme } from "../../utils/color";
 import { useShops } from "../../hooks/useShops";
 import { useAllWorkbenches } from "../../hooks/useWorkbenches";
 import { useAllItems } from "../../hooks/useItems";
@@ -20,7 +30,9 @@ import { cn } from "../../utils/cn";
 
 const schema = z.object({
   appearance: z.object({
+    accentColor: z.string().regex(HEX_COLOR_PATTERN),
     defaultShopTexture: z.enum(SHOP_BACKGROUNDS),
+    guiScale: z.coerce.number().min(MIN_GUI_SCALE).max(MAX_GUI_SCALE),
     projectDensity: z.enum(["comfortable", "compact"]),
     theme: z.enum(THEME_OPTIONS),
   }),
@@ -196,6 +208,7 @@ export function SettingsModal() {
   const upsertAppSetting = useUpsertAppSetting();
   const importData = useImportData();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const didSaveRef = useRef(false);
   const [section, setSection] = useState<Section>("data");
   const [version, setVersion] = useState("Browser Preview");
   const [importMode, setImportMode] = useState<"merge" | "replace">("merge");
@@ -219,13 +232,57 @@ export function SettingsModal() {
   });
 
   const watchedTheme = watch("appearance.theme");
+  const watchedAccentColor = watch("appearance.accentColor");
+  const watchedGuiScale = watch("appearance.guiScale");
   const watchedDensity = watch("appearance.projectDensity");
   const watchedTexture = watch("appearance.defaultShopTexture");
-  const watchedReviewDay = watch("behavior.reviewDayOfWeek");
+  const liveAccentTheme = useMemo(
+    () => HEX_COLOR_PATTERN.test(watchedAccentColor)
+      ? getAccentTheme(watchedAccentColor)
+      : getAccentTheme(defaultPreferences.appearance.accentColor),
+    [watchedAccentColor]
+  );
 
   useEffect(() => {
     reset(preferences);
   }, [preferences, reset]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
+
+    const root = document.documentElement;
+    const previous = {
+      accent: root.style.getPropertyValue("--ui-accent"),
+      onAccent: root.style.getPropertyValue("--ui-on-accent"),
+      accentStrong: root.style.getPropertyValue("--ui-accent-strong"),
+      accentSoft: root.style.getPropertyValue("--ui-accent-soft"),
+      focusRing: root.style.getPropertyValue("--ui-focus-ring"),
+      fontSize: root.style.fontSize,
+    };
+    const resolvedTheme = root.dataset.theme === "light" ? "light" : "dark";
+
+    root.style.setProperty("--ui-accent", liveAccentTheme.accent);
+    root.style.setProperty("--ui-on-accent", liveAccentTheme.onAccent);
+    root.style.setProperty("--ui-accent-strong", liveAccentTheme.accentStrong);
+    root.style.setProperty("--ui-accent-soft", resolvedTheme === "light" ? liveAccentTheme.accentSoftLight : liveAccentTheme.accentSoftDark);
+    root.style.setProperty("--ui-focus-ring", liveAccentTheme.focusRing);
+    root.style.fontSize = `${watchedGuiScale}px`;
+
+    return () => {
+      if (didSaveRef.current) {
+        return;
+      }
+
+      root.style.setProperty("--ui-accent", previous.accent);
+      root.style.setProperty("--ui-on-accent", previous.onAccent);
+      root.style.setProperty("--ui-accent-strong", previous.accentStrong);
+      root.style.setProperty("--ui-accent-soft", previous.accentSoft);
+      root.style.setProperty("--ui-focus-ring", previous.focusRing);
+      root.style.fontSize = previous.fontSize;
+    };
+  }, [liveAccentTheme, watchedGuiScale]);
 
   useEffect(() => {
     let cancelled = false;
@@ -252,6 +309,21 @@ export function SettingsModal() {
       createdAt: preferencesSetting?.createdAt ?? new Date(),
       updatedAt: new Date(),
     });
+    didSaveRef.current = true;
+    if (typeof document !== "undefined") {
+      const root = document.documentElement;
+      const savedAccent = getAccentTheme(data.appearance.accentColor);
+      const resolvedTheme = root.dataset.theme === "light" ? "light" : "dark";
+
+      root.dataset.accentColor = data.appearance.accentColor;
+      root.dataset.guiScale = String(data.appearance.guiScale);
+      root.style.setProperty("--ui-accent", savedAccent.accent);
+      root.style.setProperty("--ui-on-accent", savedAccent.onAccent);
+      root.style.setProperty("--ui-accent-strong", savedAccent.accentStrong);
+      root.style.setProperty("--ui-accent-soft", resolvedTheme === "light" ? savedAccent.accentSoftLight : savedAccent.accentSoftDark);
+      root.style.setProperty("--ui-focus-ring", savedAccent.focusRing);
+      root.style.fontSize = `${data.appearance.guiScale}px`;
+    }
     closeModal();
   };
 
@@ -358,6 +430,12 @@ export function SettingsModal() {
                   Texture: {watchedTexture.replaceAll("_", " ")}
                 </p>
                 <p className="mt-1 text-sm text-[var(--ui-text-2)]">
+                  Color: {watchedAccentColor}
+                </p>
+                <p className="mt-1 text-sm text-[var(--ui-text-2)]">
+                  GUI: {watchedGuiScale}px / {watchedDensity}
+                </p>
+                <p className="mt-1 text-sm text-[var(--ui-text-2)]">
                   Storage: {isElectronRuntime ? "Electron database" : "Browser preview"}
                 </p>
               </div>
@@ -378,9 +456,24 @@ export function SettingsModal() {
                     {section === "about" && "Check the runtime and version details for this build."}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                   <div className="ui-status">{settings.length} saved setting records</div>
                   <div className="ui-status">{version}</div>
+                  {section === "appearance" && (
+                    <AnimatedButton
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="inline-flex items-center gap-2"
+                      onClick={() => {
+                        setValue("appearance.accentColor", defaultPreferences.appearance.accentColor);
+                        setValue("appearance.guiScale", defaultPreferences.appearance.guiScale);
+                      }}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Reset appearance
+                    </AnimatedButton>
+                  )}
                 </div>
               </div>
             </div>
@@ -484,6 +577,89 @@ export function SettingsModal() {
                       onClick={() => setValue("appearance.theme", "light")}
                       testId="select-theme-light"
                     />
+                  </div>
+                </SettingsSection>
+
+                <SettingsSection
+                  title="App Color"
+                  description="This color controls primary buttons, active states, focus rings, and function highlights across the app."
+                >
+                  <div className="grid gap-4 md:grid-cols-[14rem_minmax(0,1fr)]">
+                    <div className="rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-1)] p-4">
+                      <label className="block text-sm font-medium text-[var(--ui-text-2)]" htmlFor="accent-color-picker">
+                        Accent color
+                      </label>
+                      <div className="mt-3 flex items-center gap-3">
+                        <input
+                          id="accent-color-picker"
+                          type="color"
+                          value={watchedAccentColor}
+                          {...register("appearance.accentColor")}
+                          className="h-12 w-16 cursor-pointer rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-transparent p-1"
+                          data-testid="input-accent-color"
+                        />
+                        <input
+                          type="text"
+                          value={watchedAccentColor}
+                          onChange={(event) => {
+                            const nextValue = event.target.value.trim();
+                            if (HEX_COLOR_PATTERN.test(nextValue)) {
+                              setValue("appearance.accentColor", nextValue.toLowerCase());
+                            }
+                          }}
+                          className="input h-11 font-mono text-sm"
+                          aria-label="Accent color hex value"
+                          data-testid="input-accent-hex"
+                        />
+                      </div>
+                    </div>
+                    <div className="rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-1)] p-4">
+                      <p className="text-sm font-medium text-[var(--ui-text-2)]">Readable preview</p>
+                      <div className="mt-3 flex flex-wrap items-center gap-3">
+                        <button type="button" className="btn btn-primary inline-flex items-center gap-2">
+                          <Check className="h-4 w-4" />
+                          Primary function
+                        </button>
+                        <button type="button" className="btn btn-ghost btn-active inline-flex items-center gap-2">
+                          <Palette className="h-4 w-4" />
+                          Active state
+                        </button>
+                        <span className="ui-status ui-status-accent">Focus and status</span>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-[var(--ui-text-3)]">
+                        Button text automatically switches between dark and light for contrast.
+                      </p>
+                    </div>
+                  </div>
+                </SettingsSection>
+
+                <SettingsSection
+                  title="GUI Size"
+                  description="Scale the interface globally so controls, text, and panels match your working distance."
+                >
+                  <div className="rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-1)] p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <label className="text-sm font-medium text-[var(--ui-text-2)]" htmlFor="gui-scale-slider">
+                        Interface scale
+                      </label>
+                      <span className="ui-status">{watchedGuiScale}px</span>
+                    </div>
+                    <input
+                      id="gui-scale-slider"
+                      type="range"
+                      min={MIN_GUI_SCALE}
+                      max={MAX_GUI_SCALE}
+                      step={1}
+                      value={watchedGuiScale}
+                      onChange={(event) => setValue("appearance.guiScale", Number(event.target.value))}
+                      className="mt-4 w-full accent-[var(--ui-accent)]"
+                      data-testid="input-gui-scale"
+                    />
+                    <div className="mt-2 flex justify-between text-xs text-[var(--ui-text-3)]">
+                      <span>Smaller</span>
+                      <span>Default {DEFAULT_GUI_SCALE}px</span>
+                      <span>Larger</span>
+                    </div>
                   </div>
                 </SettingsSection>
 

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Archive, ArchiveRestore, Clock3, LibraryBig, Search } from "lucide-react";
-import { useAllWorkbenches } from "../../hooks/useWorkbenches";
+import { useAllWorkbenches, useRestoreWorkbench } from "../../hooks/useWorkbenches";
 import {
   useArchiveLockerItem,
   useLockerItems,
@@ -16,6 +16,7 @@ import type { LockerItem } from "../../types";
 import { useAppSetting } from "../../hooks/useAppSettings";
 import { parsePreferences } from "../../utils/preferences";
 import { MetricCard, MetricGrid, Page, PageHeader, Panel } from "../shared/Layout";
+import { getWorkbenchDisplayName, isWorkbenchArchived } from "../../data/workbenches";
 
 type LockerTab = "active" | "archived";
 
@@ -75,6 +76,7 @@ export function LockerView() {
   const { data: workbenches = [] } = useAllWorkbenches();
   const archiveLockerItem = useArchiveLockerItem();
   const restoreLockerItem = useRestoreLockerItem();
+  const restoreWorkbench = useRestoreWorkbench();
   const rescueLockerItem = useRescueLockerItem();
   const { data: preferencesSetting } = useAppSetting("preferences");
   const preferences = parsePreferences(preferencesSetting?.value);
@@ -90,7 +92,8 @@ export function LockerView() {
     });
   }, [activeTab, lockerItems, searchQuery, typeFilter]);
 
-  const archivedWorkbenches = useMemo(() => workbenches.filter(wb => wb.name.includes("[ARCHIVED]")), [workbenches]);
+  const activeWorkbenches = useMemo(() => workbenches.filter((workbench) => !isWorkbenchArchived(workbench)), [workbenches]);
+  const archivedWorkbenches = useMemo(() => workbenches.filter(isWorkbenchArchived), [workbenches]);
   const activeItemsCount = useMemo(() => lockerItems.filter((item) => !item.isArchived).length, [lockerItems]);
   const archivedItemsCount = useMemo(() => lockerItems.filter((item) => item.isArchived).length + archivedWorkbenches.length, [lockerItems, archivedWorkbenches]);
   const staleCount = staleItems.length;
@@ -103,6 +106,10 @@ export function LockerView() {
     await restoreLockerItem.mutateAsync({ id: itemId, staleDays: preferences.behavior.lockerStaleDays });
   }, [preferences.behavior.lockerStaleDays, restoreLockerItem]);
 
+  const handleRestoreWorkbench = useCallback(async (workbenchId: string) => {
+    await restoreWorkbench.mutateAsync(workbenchId);
+  }, [restoreWorkbench]);
+
   const handleOpenRescue = useCallback((item: LockerItem) => {
     setExpandedRescueId((current) => (current === item.id ? null : item.id));
     setRescueErrors((current) => ({ ...current, [item.id]: "" }));
@@ -112,9 +119,9 @@ export function LockerView() {
     }));
     setRescueWorkbenchId((current) => ({
       ...current,
-      [item.id]: current[item.id] ?? workbenches[0]?.id ?? "",
+      [item.id]: current[item.id] ?? activeWorkbenches[0]?.id ?? "",
     }));
-  }, [workbenches]);
+  }, [activeWorkbenches]);
 
   const handleRescue = useCallback(async (item: LockerItem) => {
     const workbenchId = rescueWorkbenchId[item.id] ?? "";
@@ -250,13 +257,25 @@ export function LockerView() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="ui-kicker">Project</div>
-                  <h2 className="mt-1 text-lg font-semibold text-[var(--ui-text-1)]">{wb.name.replace("[ARCHIVED]", "").trim()}</h2>
+                  <h2 className="mt-1 text-lg font-semibold text-[var(--ui-text-1)]">{getWorkbenchDisplayName(wb.name)}</h2>
                   {wb.description && <p className="mt-2 text-sm text-[var(--ui-text-2)]">{wb.description}</p>}
                 </div>
                 <span className="ui-status">Archived</span>
               </div>
               <div className="mt-3 text-xs text-[var(--ui-text-3)]">
                 Created {new Date(wb.createdAt).toLocaleDateString()} · Last Opened {new Date(wb.lastOpenedAt ?? wb.createdAt).toLocaleDateString()}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleRestoreWorkbench(wb.id)}
+                  disabled={restoreWorkbench.isPending}
+                  className="btn btn-primary inline-flex items-center gap-2 text-xs"
+                  data-testid={`btn-restore-workbench-${wb.id}`}
+                >
+                  <ArchiveRestore className="h-3.5 w-3.5" />
+                  {restoreWorkbench.isPending ? "Restoring..." : "Restore Project"}
+                </button>
               </div>
             </article>
           ))}
@@ -338,7 +357,7 @@ export function LockerView() {
                               data-testid={`select-rescue-project-${item.id}`}
                             >
                               <option value="">Select a project</option>
-                              {workbenches.map((workbench) => (
+                              {activeWorkbenches.map((workbench) => (
                                 <option key={workbench.id} value={workbench.id}>
                                   {workbench.name}
                                 </option>

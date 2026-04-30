@@ -5,13 +5,32 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Workshop color palette
+        // Mirrors DESIGN.md so utility classes stay aligned with the app tokens.
+        tinker: {
+          primary: '#24211e',
+          secondary: '#6f665b',
+          tertiary: '#9b7a4f',
+          neutral: '#fbf8f1',
+          'surface-0': '#f7f2ea',
+          'surface-1': '#fbf8f1',
+          'surface-2': '#f3ede3',
+          'surface-3': '#ede5d8',
+          'surface-4': '#ded3c4',
+          'text-1': '#24211e',
+          'text-2': '#6f665b',
+          'text-3': '#9a9083',
+          muted: '#afa495',
+          danger: '#c98577',
+          warning: '#d7a94d',
+          success: '#7f9a75',
+          info: '#8fa7bb',
+        },
         workshop: {
-          steel: '#475569',
-          pine: '#fcd34d',
-          oak: '#8b5cf6',
-          chalk: '#f8fafc',
-          concrete: '#94a3b8',
+          steel: '#a9bacb',
+          pine: '#ebcb7a',
+          oak: '#c98577',
+          chalk: '#fffdf7',
+          concrete: '#ded3c4',
         },
       },
     },

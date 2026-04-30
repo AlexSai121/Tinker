@@ -14,6 +14,7 @@ const SkillPortfolio = lazy(() => import("./components/dashboard/SkillPortfolio"
 const LockerView = lazy(() => import("./components/dashboard/LockerView").then((module) => ({ default: module.LockerView })));
 const WeeklyReviewView = lazy(() => import("./components/dashboard/WeeklyReviewView").then((module) => ({ default: module.WeeklyReviewView })));
 const SearchResultsView = lazy(() => import("./components/dashboard/SearchResultsView").then((module) => ({ default: module.SearchResultsView })));
+import { OnboardingView } from './components/onboarding/OnboardingView';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +36,7 @@ function AppContent() {
   const activeShopId = useUiStore((s) => s.activeShopId);
   const activeWorkbenchId = useUiStore((s) => s.activeWorkbenchId);
   const searchQuery = useUiStore((s) => s.searchQuery);
+  const onboardingCompleted = useUiStore((s) => s.onboardingCompleted);
   const trimmedSearch = searchQuery.trim();
   const dashboardFallback = (
     <div className="grid h-full gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
@@ -44,14 +46,18 @@ function AppContent() {
     </div>
   );
 
+  if (!onboardingCompleted) {
+    return <OnboardingView />;
+  }
+
   if (trimmedSearch.length > 0) {
     return (
       <AppShell>
-        <ViewTransition viewKey={`search-${trimmedSearch}`}>
-          <Suspense fallback={dashboardFallback}>
+        <Suspense fallback={dashboardFallback}>
+          <ViewTransition viewKey={`search-${trimmedSearch}`}>
             <SearchResultsView query={trimmedSearch} />
-          </Suspense>
-        </ViewTransition>
+          </ViewTransition>
+        </Suspense>
       </AppShell>
     );
   }
@@ -77,11 +83,7 @@ function AppContent() {
         );
       }
 
-      return (
-        <Suspense fallback={dashboardFallback}>
-          <WorkbenchCanvas shopId={activeShopId} />
-        </Suspense>
-      );
+      return <WorkbenchCanvas shopId={activeShopId} />;
     }
 
     if (viewMode === "project") {
@@ -97,51 +99,27 @@ function AppContent() {
         );
       }
 
-      return (
-        <Suspense fallback={dashboardFallback}>
-          <ProjectView workbenchId={activeWorkbenchId} />
-        </Suspense>
-      );
+      return <ProjectView workbenchId={activeWorkbenchId} />;
     }
 
     if (viewMode === "scarMap") {
-      return (
-        <Suspense fallback={dashboardFallback}>
-          <ScarMapView />
-        </Suspense>
-      );
+      return <ScarMapView />;
     }
 
     if (viewMode === "portfolio") {
-      return (
-        <Suspense fallback={dashboardFallback}>
-          <SkillPortfolio />
-        </Suspense>
-      );
+      return <SkillPortfolio />;
     }
 
     if (viewMode === "constellation") {
-      return (
-        <Suspense fallback={dashboardFallback}>
-          <ConstellationView />
-        </Suspense>
-      );
+      return <ConstellationView />;
     }
 
     if (viewMode === "locker") {
-      return (
-        <Suspense fallback={dashboardFallback}>
-          <LockerView />
-        </Suspense>
-      );
+      return <LockerView />;
     }
 
     if (viewMode === "review") {
-      return (
-        <Suspense fallback={dashboardFallback}>
-          <WeeklyReviewView />
-        </Suspense>
-      );
+      return <WeeklyReviewView />;
     }
 
     return (
@@ -157,9 +135,11 @@ function AppContent() {
 
   return (
     <AppShell>
-      <ViewTransition viewKey={viewKey}>
-        {content}
-      </ViewTransition>
+      <Suspense fallback={dashboardFallback}>
+        <ViewTransition viewKey={viewKey}>
+          {content}
+        </ViewTransition>
+      </Suspense>
     </AppShell>
   );
 }

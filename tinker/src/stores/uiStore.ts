@@ -15,11 +15,14 @@ export type ViewMode =
   | "locker"
   | "review";
 
+export type ProjectViewMode = "board" | "timeline" | "gallery";
+
 interface UiState {
   // Navigation
   activeShopId: string | null;
   activeWorkbenchId: string | null;
   viewMode: ViewMode;
+  projectView: ProjectViewMode;
 
   // Selection
   selectedItemId: string | null;
@@ -31,9 +34,15 @@ interface UiState {
   // Search
   searchQuery: string;
 
+  // Toolbar
+  viewTabsExpanded: boolean;
+
   // Sidebar
   sidebarOpen: boolean;
   sidebarWidth: number;
+
+  // Onboarding
+  onboardingCompleted: boolean;
 
   // Theme (for non-CSS contexts like Konva canvas)
   resolvedTheme: "light" | "dark";
@@ -42,16 +51,19 @@ interface UiState {
   setActiveShop: (id: string | null) => void;
   setActiveWorkbench: (id: string | null) => void;
   setViewMode: (mode: ViewMode) => void;
+  setProjectView: (mode: ProjectViewMode) => void;
   selectItem: (id: string | null) => void;
   selectSkill: (id: string | null) => void;
   openModal: (modal: ModalState) => void;
   closeModal: () => void;
   closeAllModals: () => void;
   setSearchQuery: (query: string) => void;
+  setViewTabsExpanded: (expanded: boolean) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarWidth: (width: number) => void;
   setResolvedTheme: (theme: "light" | "dark") => void;
+  completeOnboarding: () => void;
   resetUi: () => void;
 }
 
@@ -59,13 +71,16 @@ const initialUiState = {
   activeShopId: null,
   activeWorkbenchId: null,
   viewMode: "workbench" as ViewMode,
+  projectView: "board" as ProjectViewMode,
   selectedItemId: null,
   selectedSkillId: null,
   modalStack: [],
   searchQuery: "",
+  viewTabsExpanded: true,
   sidebarOpen: true,
-  sidebarWidth: 288,
-  resolvedTheme: "dark" as "light" | "dark",
+  sidebarWidth: 240,
+  onboardingCompleted: false,
+  resolvedTheme: "light" as "light" | "dark",
 };
 
 const UI_STORE_PERSIST_KEY = "tinker-ui-store";
@@ -102,16 +117,24 @@ export const useUiStore = create<UiState>()(
         ...initialUiState,
 
         setActiveShop: (id) =>
-          set({ activeShopId: id, activeWorkbenchId: null, viewMode: "workbench", selectedItemId: null }),
+          set({
+            activeShopId: id,
+            activeWorkbenchId: null,
+            viewMode: "workbench",
+            projectView: "board",
+            selectedItemId: null,
+          }),
 
         setActiveWorkbench: (id) =>
-          set({ activeWorkbenchId: id, viewMode: "project", selectedItemId: null }),
+          set({ activeWorkbenchId: id, viewMode: "project", projectView: "board", selectedItemId: null }),
 
         setViewMode: (mode) =>
           set((state) => ({
             viewMode: mode,
             selectedItemId: mode === "project" ? state.selectedItemId : null,
           })),
+
+        setProjectView: (mode) => set({ projectView: mode }),
 
         selectItem: (id) => set({ selectedItemId: id }),
         selectSkill: (id) => set({ selectedSkillId: id }),
@@ -126,13 +149,17 @@ export const useUiStore = create<UiState>()(
 
         setSearchQuery: (query) => set({ searchQuery: query }),
 
+        setViewTabsExpanded: (expanded) => set({ viewTabsExpanded: expanded }),
+
         toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
         setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
-        setSidebarWidth: (width) => set({ sidebarWidth: Math.max(248, Math.min(420, width)) }),
+        setSidebarWidth: (width) => set({ sidebarWidth: Math.max(240, Math.min(320, width)) }),
 
         setResolvedTheme: (theme) => set({ resolvedTheme: theme }),
+
+        completeOnboarding: () => set({ onboardingCompleted: true }),
 
         resetUi: () => {
           getUiStorage().removeItem(UI_STORE_PERSIST_KEY);
@@ -146,8 +173,11 @@ export const useUiStore = create<UiState>()(
           activeShopId: state.activeShopId,
           activeWorkbenchId: state.activeWorkbenchId,
           viewMode: state.viewMode,
+          projectView: state.projectView,
+          viewTabsExpanded: state.viewTabsExpanded,
           sidebarOpen: state.sidebarOpen,
           sidebarWidth: state.sidebarWidth,
+          onboardingCompleted: state.onboardingCompleted,
         }),
       }
     ),

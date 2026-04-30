@@ -14,7 +14,7 @@ export function OnboardingTooltip() {
   const upsertAppSetting = useUpsertAppSetting();
 
   const isDismissed = dismissedSetting?.value === "true";
-  const shouldShow = !shopsLoading && !settingLoading && !isDismissed;
+  const shouldShow = !shopsLoading && !settingLoading && !isDismissed && shops.length === 0;
 
   if (!shouldShow) {
     return null;
@@ -53,7 +53,7 @@ export function OnboardingTooltip() {
 
   return (
     <div className="pointer-events-none absolute right-6 top-4 z-20 max-w-sm" data-testid="onboarding-tooltip">
-      <div className="pointer-events-auto rounded-[var(--ui-radius-xl)] border border-[var(--ui-border)] bg-[var(--ui-surface-elevated)] p-4 shadow-[var(--ui-shadow-2)] backdrop-blur">
+      <div className="pointer-events-auto rounded-[var(--ui-radius-xl)] border border-[var(--ui-border)] bg-[var(--ui-surface-elevated)] p-4 shadow-[var(--ui-shadow-2)]">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 rounded-full bg-[var(--ui-accent-soft)] p-2 text-[var(--ui-accent)]">
             <Lightbulb className="h-4 w-4" />

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Download, Filter, Flame, Hammer, TriangleAlert } from "lucide-react";
+import { CircleDot, Download, Filter, Flame, Hammer, TriangleAlert } from "lucide-react";
 import { buildScarSharePayload } from "../../data/scarMap";
 import { useScarMap } from "../../hooks/useScarsMap";
 import { SCAR_FAILURE_TYPES } from "../../utils/constants";
@@ -50,7 +50,7 @@ function DistributionChart({ data }: { data: Array<{ failureType: string; count:
     const start = cursor;
     const slice = (point.count / total) * 360;
     cursor += slice;
-    const color = ["#CC785C", "#A9583E", "#A09D96", "#6C6A64", "#3D3D3A", "#5DB872", "#D4A017", "#C64545"][index % 8];
+    const color = ["#c98577", "#d7a94d", "#8fa7bb", "#7f9a75", "#a994c7", "#a88a66", "#d8cfc3", "#9a9083"][index % 8];
     return `${color} ${start}deg ${cursor}deg`;
   });
 
@@ -59,7 +59,7 @@ function DistributionChart({ data }: { data: Array<{ failureType: string; count:
       <div className="mx-auto h-40 w-40 rounded-full border border-[var(--ui-border)]" style={{ background: `conic-gradient(${segments.join(", ")})` }} />
       <div className="grid flex-1 gap-2">
         {data.map((point, index) => {
-          const color = ["#CC785C", "#A9583E", "#A09D96", "#6C6A64", "#3D3D3A", "#5DB872", "#D4A017", "#C64545"][index % 8];
+          const color = ["#c98577", "#d7a94d", "#8fa7bb", "#7f9a75", "#a994c7", "#a88a66", "#d8cfc3", "#9a9083"][index % 8];
           return (
             <div key={point.failureType} className="flex items-center justify-between gap-3 text-sm">
               <div className="flex items-center gap-2 text-[var(--ui-text-2)]">
@@ -143,8 +143,8 @@ function TrendChart({ data }: { data: Array<{ period: string; attempts: number; 
   return (
     <div className="space-y-3">
       <svg viewBox={`0 0 ${width} ${height}`} className="h-48 w-full overflow-visible">
-        <polyline fill="none" stroke="#A7A7A7" strokeWidth="3" points={toPolyline("attempts")} />
-        <polyline fill="none" stroke="#E85002" strokeWidth="3" points={toPolyline("scars")} />
+        <polyline fill="none" stroke="#9a9083" strokeWidth="3" points={toPolyline("attempts")} />
+        <polyline fill="none" stroke="#c98577" strokeWidth="3" points={toPolyline("scars")} />
       </svg>
       <div className="flex flex-wrap gap-4 text-xs text-[var(--ui-text-2)]">
         <span className="flex items-center gap-2"><span className="h-2 w-6 rounded-full bg-[var(--ui-text-2)]" /> Attempts</span>
@@ -176,6 +176,7 @@ export function ScarMapView() {
   );
 
   const { data, isLoading, isError } = useScarMap(filters);
+  const highSeverityCount = data?.rows.filter(({ scar }) => scar.severity === "restart" || scar.severity === "injury").length ?? 0;
 
   const handleExport = async () => {
     const payload = await buildScarSharePayload(filters);
@@ -212,19 +213,20 @@ export function ScarMapView() {
     <Page>
       <PageHeader
         title="Scar Map"
-        description="Failure patterns over time, across projects, with enough calm to notice what is repeating."
+        description="A calmer map of failures, lessons, and repeating patterns."
         actions={
-        <button type="button" onClick={handleExport} className="btn btn-primary inline-flex items-center gap-2 self-start shrink-0">
+        <button type="button" onClick={handleExport} className="btn btn-primary inline-flex items-center gap-2 self-start shrink-0" data-testid="btn-export-scar-map">
           <Download className="h-4 w-4" />
-          Export Scar Share
+          Export
         </button>
         }
       />
 
-      <MetricGrid className="mb-6 md:grid-cols-3">
+      <MetricGrid className="mb-6 md:grid-cols-4">
         <MetricCard label="Total scars" value={data.summary.totalScars} icon={<TriangleAlert className="h-4 w-4 text-[var(--ui-danger)]" />} />
+        <MetricCard label="Recurring patterns" value={data.distribution.length} icon={<CircleDot className="h-4 w-4 text-[var(--ui-warning)]" />} />
+        <MetricCard label="High severity" value={highSeverityCount} icon={<Flame className="h-4 w-4 text-[var(--ui-danger)]" />} />
         <MetricCard label="Attempts in range" value={data.summary.totalAttempts} icon={<Hammer className="h-4 w-4 text-[var(--ui-text-2)]" />} />
-        <MetricCard label="Scar rate" value={`${Math.round(data.summary.failureRate * 100)}%`} icon={<Flame className="h-4 w-4 text-[var(--ui-warning)]" />} />
       </MetricGrid>
 
       <Panel className="mb-6" bodyClassName="grid gap-3 xl:grid-cols-[1.1fr_1fr_1fr_1fr]">
@@ -232,21 +234,21 @@ export function ScarMapView() {
           <Filter className="h-4 w-4" />
           Filters
         </div>
-        <select value={workbenchId} onChange={(event) => setWorkbenchId(event.target.value)} className="input">
+        <select value={workbenchId} onChange={(event) => setWorkbenchId(event.target.value)} className="input" data-testid="select-scar-project-filter">
           <option value="">All projects</option>
           {data.workbenches.map((workbench) => (
             <option key={workbench.id} value={workbench.id}>{workbench.name}</option>
           ))}
         </select>
-        <select value={failureType} onChange={(event) => setFailureType(event.target.value as typeof failureType)} className="input">
+        <select value={failureType} onChange={(event) => setFailureType(event.target.value as typeof failureType)} className="input" data-testid="select-scar-type-filter">
           <option value="all">All failure types</option>
           {SCAR_FAILURE_TYPES.map((type) => (
             <option key={type} value={type}>{type.replace(/_/g, " ")}</option>
           ))}
         </select>
         <div className="grid grid-cols-2 gap-3">
-          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="input" />
-          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="input" />
+          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="input" data-testid="input-scar-from" />
+          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="input" data-testid="input-scar-to" />
         </div>
       </Panel>
 

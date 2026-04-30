@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAppSetting } from "./useAppSettings";
 import { parsePreferences } from "../utils/preferences";
+import { getAccentTheme } from "../utils/color";
 
 function getSystemTheme(): "light" | "dark" {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -41,8 +42,18 @@ export function useThemeSync() {
     root.classList.remove("theme-light", "theme-dark");
     root.classList.add(`theme-${resolvedTheme}`);
     root.dataset.theme = resolvedTheme;
+    root.dataset.accentColor = preferences.appearance.accentColor;
+    root.dataset.guiScale = String(preferences.appearance.guiScale);
     root.style.colorScheme = resolvedTheme;
-  }, [resolvedTheme]);
+    root.style.fontSize = `${preferences.appearance.guiScale}px`;
+
+    const accent = getAccentTheme(preferences.appearance.accentColor);
+    root.style.setProperty("--ui-accent", accent.accent);
+    root.style.setProperty("--ui-on-accent", accent.onAccent);
+    root.style.setProperty("--ui-accent-strong", accent.accentStrong);
+    root.style.setProperty("--ui-accent-soft", resolvedTheme === "light" ? accent.accentSoftLight : accent.accentSoftDark);
+    root.style.setProperty("--ui-focus-ring", accent.focusRing);
+  }, [preferences.appearance.accentColor, preferences.appearance.guiScale, resolvedTheme]);
 
   return resolvedTheme;
 }

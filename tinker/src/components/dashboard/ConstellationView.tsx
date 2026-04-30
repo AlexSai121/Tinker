@@ -31,6 +31,7 @@ import {
   getEffectiveBridgeStrength,
   type BridgeFreshness,
 } from "../../data/bridges";
+import { getWorkbenchDisplayName, isWorkbenchArchived } from "../../data/workbenches";
 import type { Bridge, Item, Workbench } from "../../types";
 
 interface GraphNode extends NodeObject {
@@ -55,6 +56,43 @@ interface GraphLink extends LinkObject<GraphNode> {
   effectiveStrength: number;
   opacity: number;
 }
+
+interface GraphTheme {
+  background: string;
+  panelFill: string;
+  panelFillMatch: string;
+  panelStroke: string;
+  panelStrokeMatch: string;
+  text: string;
+  textSubtle: string;
+  accent: string;
+  archived: string;
+}
+
+const GRAPH_THEMES: Record<"light" | "dark", GraphTheme> = {
+  dark: {
+    background: "#181715",
+    panelFill: "rgba(255, 255, 255, 0.055)",
+    panelFillMatch: "rgba(250, 249, 245, 0.16)",
+    panelStroke: "rgba(250, 249, 245, 0.24)",
+    panelStrokeMatch: "rgba(250, 249, 245, 0.88)",
+    text: "#FAF9F5",
+    textSubtle: "rgba(250, 249, 245, 0.86)",
+    accent: "#CC785C",
+    archived: "#8E8B82",
+  },
+  light: {
+    background: "#FAF9F5",
+    panelFill: "rgba(20, 20, 19, 0.045)",
+    panelFillMatch: "rgba(204, 120, 92, 0.16)",
+    panelStroke: "rgba(20, 20, 19, 0.18)",
+    panelStrokeMatch: "rgba(169, 88, 62, 0.78)",
+    text: "#141413",
+    textSubtle: "rgba(20, 20, 19, 0.82)",
+    accent: "#A9583E",
+    archived: "#6C6A64",
+  },
+};
 
 function getItemSummary(item?: Item): string {
   if (!item) {
@@ -102,7 +140,8 @@ function buildGraphData(
   workbenches: Workbench[],
   shops: Array<{ id: string; name: string }>,
   items: Item[],
-  bridges: Bridge[]
+  bridges: Bridge[],
+  theme: GraphTheme
 ) {
   const shopLookup = new Map(shops.map((shop) => [shop.id, shop.name]));
   const itemCounts = items.reduce((map, item) => {
@@ -117,14 +156,14 @@ function buildGraphData(
     .map((workbench) => {
       const itemCount = itemCounts.get(workbench.id) ?? 0;
       const bridgeCount = bridgeCounts.get(workbench.id) ?? 0;
-      const isArchived = workbench.name.includes("[ARCHIVED]");
+      const isArchived = isWorkbenchArchived(workbench);
 
       return {
         id: workbench.id,
         shopId: workbench.shopId,
         shopName: shopLookup.get(workbench.shopId) ?? "Untitled workshop",
-        name: workbench.name.replace("[ARCHIVED]", "").trim(),
-        color: isArchived ? "#6C6A64" : "#CC785C",
+        name: getWorkbenchDisplayName(workbench.name),
+        color: isArchived ? theme.archived : theme.accent,
         val: Math.max(2, Math.min(14, 3 + itemCount * 0.7 + bridgeCount * 1.1)),
         itemCount,
         bridgeCount,
@@ -239,10 +278,12 @@ export function ConstellationView() {
   const reinforceBridge = useReinforceBridge();
   const setActiveShop = useUiStore((state) => state.setActiveShop);
   const setActiveWorkbench = useUiStore((state) => state.setActiveWorkbench);
+  const resolvedTheme = useUiStore((state) => state.resolvedTheme);
+  const graphTheme = GRAPH_THEMES[resolvedTheme];
 
   const graphData = useMemo(
-    () => buildGraphData(workbenches, shops, items, bridges),
-    [bridges, items, shops, workbenches]
+    () => buildGraphData(workbenches, shops, items, bridges, graphTheme),
+    [bridges, graphTheme, items, shops, workbenches]
   );
   const itemLookup = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const workbenchLookup = useMemo(
@@ -375,7 +416,7 @@ export function ConstellationView() {
       }) as unknown as ForceGraph3DInstance<GraphNode, GraphLink>;
 
       graph
-        .backgroundColor("#12110F")
+        .backgroundColor(graphTheme.background)
         .showNavInfo(false)
         .nodeId("id")
         .linkResolution(8)
@@ -409,7 +450,7 @@ export function ConstellationView() {
       graph?._destructor();
       graphRef.current = null;
     };
-  }, [graphFailed]);
+  }, [graphFailed, graphTheme.background]);
 
   useEffect(() => {
     const graph = graphRef.current;
@@ -424,61 +465,62 @@ export function ConstellationView() {
         const normalized = query.trim().toLowerCase();
         const isMatch = normalized && [graphNode.name, graphNode.shopName].some((value) => value.toLowerCase().includes(normalized));
         
+        const dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 1));
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d")!;
-        
-        context.font = "500 14px Inter, sans-serif";
-        const textWidth = context.measureText(graphNode.name).width;
-        
-        canvas.width = textWidth + 24;
-        canvas.height = 28;
-        
+        const font = "600 14px Inter, sans-serif";
+
+        context.font = font;
+        const textWidth = Math.ceil(context.measureText(graphNode.name).width);
+        const width = textWidth + 24;
+        const height = 28;
+
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+
         const ctx = canvas.getContext("2d")!;
-        ctx.font = "500 14px Inter, sans-serif";
+        ctx.scale(dpr, dpr);
+        ctx.font = font;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         
-        if (isMatch) {
-          ctx.fillStyle = "rgba(250, 249, 245, 0.15)";
-        } else {
-          ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
-        }
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        if (isMatch) {
-          ctx.strokeStyle = "rgba(250, 249, 245, 0.8)";
-        } else {
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-        }
+        ctx.fillStyle = isMatch ? graphTheme.panelFillMatch : graphTheme.panelFill;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.strokeStyle = isMatch ? graphTheme.panelStrokeMatch : graphTheme.panelStroke;
         ctx.lineWidth = 1;
-        ctx.strokeRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = isMatch ? "#FAF9F5" : "rgba(250, 249, 245, 0.85)";
-        ctx.fillText(graphNode.name, canvas.width / 2, canvas.height / 2);
+        ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+
+        ctx.fillStyle = isMatch ? graphTheme.text : graphTheme.textSubtle;
+        ctx.fillText(graphNode.name, width / 2, height / 2 + 0.5);
         
         const texture = new THREE.CanvasTexture(canvas);
         texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.colorSpace = THREE.SRGBColorSpace;
         texture.needsUpdate = true;
         
         const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
         const sprite = new THREE.Sprite(material);
         
-        sprite.scale.set(canvas.width * 0.45, canvas.height * 0.45, 1);
+        sprite.scale.set(width * 0.45, height * 0.45, 1);
         return sprite;
       })
       .linkColor((link) => {
         if (link.id === selectedBridgeId) {
-          return "#FAF9F5";
+          return graphTheme.text;
         }
         return link.color;
       })
       .linkWidth((link) => (link.id === selectedBridgeId ? Math.max(1.4, link.effectiveStrength * 0.9) : Math.max(0.4, link.effectiveStrength * 0.45)))
       .linkDirectionalParticles((link) => (link.id === selectedBridgeId ? 3 : link.freshness === "fresh" ? 1 : 0))
       .linkDirectionalParticleWidth((link) => (link.id === selectedBridgeId ? 2.4 : 1.4))
-      .linkDirectionalParticleColor(() => "#CC785C");
+      .linkDirectionalParticleColor(() => graphTheme.accent);
 
     window.setTimeout(() => fitGraph(), 80);
-  }, [graphData, query, selectedBridgeId]);
+  }, [graphData, graphTheme, query, selectedBridgeId]);
 
   const isLoading = shopsLoading || workbenchesLoading || itemsLoading || bridgesLoading;
 
@@ -521,40 +563,40 @@ export function ConstellationView() {
     <div className="grid h-full min-h-0 bg-[var(--ui-surface-0)] lg:grid-cols-[minmax(0,1fr)_22rem]">
       <section className="relative min-h-0 overflow-hidden">
         <div className="absolute left-4 right-4 top-4 z-10 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-xl rounded-[var(--ui-radius-xl)] border border-[var(--ui-border)] bg-[rgba(24,23,21,0.72)] px-4 py-3 text-[#FAF9F5] backdrop-blur">
-            <div className="flex items-center gap-2 text-xs font-medium uppercase text-[#A09D96]">
+          <div className="max-w-xl rounded-[var(--ui-radius-xl)] border border-[var(--ui-border)] bg-[var(--ui-surface-translucent)] px-4 py-3 text-[var(--ui-text-1)] shadow-[var(--ui-shadow-1)]">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase text-[var(--ui-text-3)]">
               <Network className="h-4 w-4 text-[var(--ui-accent)]" />
               3D relationship graph
             </div>
             <h1 className="mt-2 font-serif text-3xl leading-tight">Constellation</h1>
-            <p className="mt-1 text-sm leading-6 text-[#C5C0B7]">
+            <p className="mt-1 text-sm leading-6 text-[var(--ui-text-2)]">
               Orbit the projects, inspect bridge lines, and open any node back into the workbench.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 rounded-full border border-[var(--ui-border)] bg-[rgba(24,23,21,0.72)] p-1 backdrop-blur">
-            <AnimatedButton type="button" variant="ghost" size="sm" onClick={fitGraph} className="rounded-full text-[#FAF9F5]">
+          <div className="flex flex-wrap items-center gap-2 rounded-full border border-[var(--ui-border)] bg-[var(--ui-surface-translucent)] p-1 shadow-[var(--ui-shadow-1)]">
+            <AnimatedButton type="button" variant="ghost" size="sm" onClick={fitGraph} className="rounded-full text-[var(--ui-text-1)]">
               <Maximize2 className="h-4 w-4" />
               Fit
             </AnimatedButton>
-            <AnimatedButton type="button" variant="ghost" size="sm" onClick={resetCamera} className="rounded-full text-[#FAF9F5]">
+            <AnimatedButton type="button" variant="ghost" size="sm" onClick={resetCamera} className="rounded-full text-[var(--ui-text-1)]">
               <RotateCcw className="h-4 w-4" />
               Reset
             </AnimatedButton>
-            <AnimatedButton type="button" variant="ghost" size="sm" onClick={toggleFrozen} className="rounded-full text-[#FAF9F5]">
+            <AnimatedButton type="button" variant="ghost" size="sm" onClick={toggleFrozen} className="rounded-full text-[var(--ui-text-1)]">
               {isFrozen ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
               {isFrozen ? "Resume" : "Freeze"}
             </AnimatedButton>
           </div>
         </div>
 
-        <div className="absolute bottom-4 left-4 z-10 w-[min(28rem,calc(100%-2rem))] rounded-[var(--ui-radius-xl)] border border-[var(--ui-border)] bg-[rgba(24,23,21,0.78)] p-3 backdrop-blur">
+        <div className="absolute bottom-4 left-4 z-10 w-[min(28rem,calc(100%-2rem))] rounded-[var(--ui-radius-xl)] border border-[var(--ui-border)] bg-[var(--ui-surface-translucent)] p-3 shadow-[var(--ui-shadow-1)]">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A09D96]" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ui-text-3)]" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="input h-10 rounded-full border-[rgba(250,249,245,0.14)] bg-[rgba(31,30,27,0.8)] pl-9 text-[#FAF9F5] placeholder:text-[#A09D96]"
+              className="input h-10 rounded-full pl-9"
               placeholder="Find a project or workshop"
               data-testid="input-constellation-search"
             />
@@ -565,10 +607,10 @@ export function ConstellationView() {
                 key={node.id}
                 type="button"
                 onClick={() => focusNode(node)}
-                className="flex w-full items-center justify-between rounded-[var(--ui-radius-md)] px-3 py-2 text-left text-sm text-[#C5C0B7] hover:bg-white/5 hover:text-[#FAF9F5]"
+                className="flex w-full items-center justify-between rounded-[var(--ui-radius-md)] px-3 py-2 text-left text-sm text-[var(--ui-text-2)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text-1)]"
               >
                 <span className="truncate">{node.name}</span>
-                <span className="text-xs text-[#A09D96]">{node.bridgeCount} links</span>
+                <span className="text-xs text-[var(--ui-text-3)]">{node.bridgeCount} links</span>
               </button>
             ))}
           </div>

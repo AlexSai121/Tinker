@@ -9,6 +9,10 @@ export interface StructuredItemContent {
   attemptWhat?: string;
   attemptResult?: string;
   attemptTools?: string[];
+  evidenceNotes?: string;
+  outcome?: "success" | "partial" | "failed";
+  outcomeNotes?: string;
+  confidence?: number;
 }
 
 export function encodeStructuredItemContent(content: StructuredItemContent): string {

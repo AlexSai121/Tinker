@@ -14,6 +14,15 @@ interface Props {
   scars: Scar[];
 }
 
+const ITEM_ACCENTS: Record<string, string> = {
+  observation: "var(--ui-accent-note)",
+  reference: "var(--ui-accent-reference)",
+  attempt: "var(--ui-accent-attempt)",
+  question: "var(--ui-accent-question)",
+  breakthrough: "var(--ui-accent-breakthrough)",
+  sticky: "var(--ui-accent-note)",
+};
+
 export function MediaCard({ item, media, scars }: Props) {
   const openModal = useUiStore((s) => s.openModal);
   const stopPointer = (event: React.PointerEvent<HTMLElement>) => event.stopPropagation();
@@ -39,7 +48,8 @@ export function MediaCard({ item, media, scars }: Props) {
 
   return (
     <article
-      className="flex w-[320px] flex-col gap-3 rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-1)] p-3"
+      className="item-material-card flex w-[320px] flex-col gap-3 p-3"
+      style={{ "--item-accent": ITEM_ACCENTS[item.type] ?? "var(--ui-accent-reference)" } as React.CSSProperties}
       data-testid={`item-card-${item.type}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -56,7 +66,7 @@ export function MediaCard({ item, media, scars }: Props) {
         type="button"
         onClick={handlePreview}
         onPointerDown={stopPointer}
-        className="overflow-hidden rounded-[var(--ui-radius-sm)] border border-[var(--ui-border)] bg-[var(--ui-surface-0)] text-left"
+        className="overflow-hidden rounded-[var(--ui-radius-sm)] border border-[var(--ui-border)] bg-[var(--ui-bg-muted)] text-left"
         data-testid={`btn-preview-media-${item.id}`}
       >
         {previewKind === "photo" ? (
@@ -68,7 +78,7 @@ export function MediaCard({ item, media, scars }: Props) {
             className="h-44 w-full object-cover"
           />
         ) : (
-          <div className="flex h-44 items-center justify-center bg-[var(--ui-surface-0)] text-[var(--ui-text-2)]">
+          <div className="flex h-44 items-center justify-center bg-[var(--ui-bg-muted)] text-[var(--ui-text-2)]">
             {previewKind === "video" ? <Video className="h-10 w-10 text-[var(--ui-accent)]" /> : <FileText className="h-10 w-10" />}
           </div>
         )}

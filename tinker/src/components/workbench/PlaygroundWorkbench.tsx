@@ -3,7 +3,7 @@ import { motion, type PanInfo } from "framer-motion";
 import { nanoid } from "nanoid";
 import { useAppSetting, useUpsertAppSetting } from "../../hooks/useAppSettings";
 import { useCreateItem, useDeleteItem, useItems, useUpdateItemPosition } from "../../hooks/useItems";
-import { useItemMedia } from "../../hooks/useItemMedia";
+import { useCreateItemMedia, useItemMedia } from "../../hooks/useItemMedia";
 import { useScars } from "../../hooks/useScars";
 import { useMediaDrop } from "../../hooks/useMediaDrop";
 import type { Item } from "../../types";
@@ -18,6 +18,7 @@ import { triggerHapticFeedback } from "../../utils/haptics";
 import { decodeStructuredItemContent } from "../../utils/itemContent";
 import { TypeBadge } from "../shared/TypeBadge";
 import { AnimatedButton } from "../shared/AnimatedButton";
+import { MediaUploader, type UploadedMediaValue } from "../shared/MediaUploader";
 import {
   ExternalLink,
   FileText,
@@ -29,9 +30,17 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  NotebookPen,
+  Library,
+  Hammer,
+  MessageCircleQuestion,
+  Sparkles,
+  Import,
 } from "lucide-react";
 import { mediaLabelFromPath } from "../../utils/media";
-import { ITEM_TYPES } from "../../utils/constants";
+import { CREATABLE_ITEM_TYPES } from "../../utils/constants";
+
+type CreatableType = (typeof CREATABLE_ITEM_TYPES)[number];
 
 const SURFACE_PADDING = 32;
 const SURFACE_MIN_WIDTH = 1400;
@@ -213,7 +222,7 @@ function WorkbenchSelectionPanel({ item }: { item: Item }) {
 
   return (
     <aside
-      className="absolute bottom-4 right-4 z-30 w-full max-w-sm rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-elevated)] p-4 shadow-[var(--ui-shadow-2)] backdrop-blur"
+      className="absolute bottom-4 right-4 z-30 w-full max-w-sm rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-elevated)] p-4 shadow-[var(--ui-shadow-2)]"
       data-testid="workbench-selection-panel"
     >
       <div className="flex items-start justify-between gap-4">
@@ -307,13 +316,20 @@ function WorkbenchSelectionPanel({ item }: { item: Item }) {
   );
 }
 
-export function PlaygroundWorkbench({ workbenchId }: { workbenchId: string }) {
+export function PlaygroundWorkbench({
+  workbenchId,
+  onCreateRequest,
+}: {
+  workbenchId: string;
+  onCreateRequest?: (type?: CreatableType | "import") => void;
+}) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const selectedItemId = useUiStore((state) => state.selectedItemId);
   const selectItem = useUiStore((state) => state.selectItem);
   const openModal = useUiStore((state) => state.openModal);
   const createItem = useCreateItem();
+  const createItemMedia = useCreateItemMedia();
   const deleteItem = useDeleteItem();
   const updateItemPosition = useUpdateItemPosition();
   const upsertAppSetting = useUpsertAppSetting();
@@ -322,7 +338,7 @@ export function PlaygroundWorkbench({ workbenchId }: { workbenchId: string }) {
   const [localPositions, setLocalPositions] = useState<Record<string, BenchPosition>>({});
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
   const [focusedStickyId, setFocusedStickyId] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<"all" | Item["type"]>("all");
+  const [activeFilter] = useState<"all" | Item["type"]>("all");
   const [camera, setCamera] = useState<BenchCamera>({ x: 32, y: 32, scale: 1 });
   const [cameraHydrated, setCameraHydrated] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
@@ -554,6 +570,46 @@ export function PlaygroundWorkbench({ workbenchId }: { workbenchId: string }) {
     triggerHapticFeedback("light");
   }, [createItem, positionedItems, registerCreatedItems, surfaceHeight, surfaceWidth, workbenchId]);
 
+  const handleQuickMediaUpload = useCallback(async (value: UploadedMediaValue) => {
+    const rect = viewportRef.current?.getBoundingClientRect();
+    const preferredPosition = rect
+      ? {
+          x: ((rect.width / 2) - camera.x) / camera.scale - CARD_WIDTH / 2,
+          y: ((rect.height / 2) - camera.y) / camera.scale - CARD_HEIGHT / 2,
+        }
+      : { x: SURFACE_PADDING, y: SURFACE_PADDING };
+    const itemId = nanoid();
+    const now = new Date();
+    const mediaItem: Item = {
+      id: itemId,
+      workbenchId,
+      type: "reference",
+      content: value.name,
+      posX: preferredPosition.x,
+      posY: preferredPosition.y,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const occupied = positionedItems.map(({ item, position }) => ({ item, position }));
+    const position = findOpenCardPosition(mediaItem, preferredPosition, occupied, surfaceWidth, surfaceHeight);
+
+    registerCreatedItems([{ id: itemId, posX: position.x, posY: position.y }]);
+    await createItem.mutateAsync({
+      ...mediaItem,
+      posX: position.x,
+      posY: position.y,
+    });
+    await createItemMedia.mutateAsync({
+      id: nanoid(),
+      itemId,
+      type: value.type,
+      path: value.path,
+      createdAt: now,
+      updatedAt: now,
+    });
+    selectItem(itemId);
+  }, [camera.scale, camera.x, camera.y, createItem, createItemMedia, positionedItems, registerCreatedItems, selectItem, surfaceHeight, surfaceWidth, workbenchId]);
+
   const handleViewportDoubleClick = useCallback(async (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
     if (target.closest("[data-testid^='playground-item-']")) {
@@ -728,109 +784,42 @@ export function PlaygroundWorkbench({ workbenchId }: { workbenchId: string }) {
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-1)]">
-      <div className="border-b border-[var(--ui-border)] px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-[var(--ui-text-1)]">Workbench Playground</p>
-            <p className="text-xs text-[var(--ui-text-3)]">
-              {filteredItems.length === items.length ? `${items.length} items on the bench` : `${filteredItems.length} of ${items.length} items visible`}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="rounded-full border border-[var(--ui-border)] bg-[var(--ui-surface-2)] px-2 py-1 text-[11px] text-[var(--ui-text-2)]">
-              Drag blank space to pan | wheel to zoom
-            </div>
-            <AnimatedButton
-              type="button"
-              onClick={() => adjustZoom(0.92)}
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-              aria-label="Zoom out"
-            >
-              <ZoomOut className="h-4 w-4" />
-            </AnimatedButton>
-            <button
-              type="button"
-              onClick={() => setCamera({ x: 32, y: 32, scale: 1 })}
-              className="rounded-full border border-[var(--ui-border)] bg-[var(--ui-surface-2)] px-3 py-2 text-xs text-[var(--ui-text-2)] transition-colors hover:border-[var(--ui-border-strong)] hover:text-[var(--ui-text-1)]"
-              data-testid="btn-reset-project-camera"
-            >
-              {Math.round(camera.scale * 100)}%
-            </button>
-            <AnimatedButton
-              type="button"
-              onClick={() => adjustZoom(1.08)}
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-              aria-label="Zoom in"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </AnimatedButton>
-            <AnimatedButton
-              type="button"
-              onClick={() => setCamera({ x: 32, y: 32, scale: 1 })}
-              variant="surface"
-              size="sm"
-              className="text-xs"
-              data-testid="btn-center-project-camera"
-            >
-              <LocateFixed className="h-3.5 w-3.5" />
-              Reset View
-            </AnimatedButton>
-            <AnimatedButton
-              type="button"
-              onClick={() => void handleArrangeCards()}
-              variant="surface"
-              size="sm"
-              className="text-xs"
-              data-testid="btn-arrange-cards"
-            >
-              <MoveHorizontal className="h-3.5 w-3.5" />
-              Arrange Cards
-            </AnimatedButton>
-            {createItem.isPending && <span className="text-xs text-[var(--ui-text-3)]">Saving...</span>}
-          </div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2" data-testid="workbench-type-filters">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
+      <div className="pointer-events-none absolute right-4 top-6 z-20 flex max-w-[calc(100%-2rem)] flex-col items-end gap-3">
+        <div className="pointer-events-auto flex items-center gap-1 rounded-[var(--ui-radius-sm)] border border-[var(--ui-border)] bg-[var(--ui-bg-card)] p-1 shadow-[var(--ui-shadow-1)]">
+          <AnimatedButton type="button" onClick={() => adjustZoom(0.92)} variant="ghost" size="icon" className="h-9 w-9" aria-label="Zoom out">
+            <ZoomOut className="h-4 w-4" />
+          </AnimatedButton>
           <button
             type="button"
-            onClick={() => setActiveFilter("all")}
-            className={cn(
-              "rounded-full border px-3 py-1 text-xs transition-colors",
-              activeFilter === "all"
-                ? "border-[rgba(204,120,92,0.6)] bg-[var(--ui-accent-soft)] text-[var(--ui-accent)]"
-                : "border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-[var(--ui-text-2)] hover:text-[var(--ui-text-1)]"
-            )}
+            onClick={() => setCamera({ x: 32, y: 32, scale: 1 })}
+            className="h-9 min-w-14 rounded-[var(--ui-radius-xs)] px-2 text-xs text-[var(--ui-text-2)] transition-colors hover:bg-[var(--ui-bg-muted)] hover:text-[var(--ui-text-1)]"
+            data-testid="btn-reset-project-camera"
           >
-            All
+            {Math.round(camera.scale * 100)}%
           </button>
-          {ITEM_TYPES.map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setActiveFilter(type)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs capitalize transition-colors",
-                activeFilter === type
-                  ? "border-[rgba(204,120,92,0.6)] bg-[var(--ui-accent-soft)] text-[var(--ui-accent)]"
-                  : "border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-[var(--ui-text-2)] hover:text-[var(--ui-text-1)]"
-              )}
-              data-testid={`filter-workbench-type-${type}`}
-            >
-              {type}
-            </button>
-          ))}
+          <AnimatedButton type="button" onClick={() => adjustZoom(1.08)} variant="ghost" size="icon" className="h-9 w-9" aria-label="Zoom in">
+            <ZoomIn className="h-4 w-4" />
+          </AnimatedButton>
+          <AnimatedButton type="button" onClick={() => setCamera({ x: 32, y: 32, scale: 1 })} variant="ghost" size="icon" className="h-9 w-9" data-testid="btn-center-project-camera" aria-label="Reset view">
+            <LocateFixed className="h-4 w-4" />
+          </AnimatedButton>
+          <AnimatedButton type="button" onClick={() => void handleArrangeCards()} variant="ghost" size="icon" className="h-9 w-9" data-testid="btn-arrange-cards" aria-label="Arrange cards">
+            <MoveHorizontal className="h-4 w-4" />
+          </AnimatedButton>
         </div>
       </div>
+
+      <MediaUploader
+        className="sr-only"
+        buttonText="Import evidence"
+        onUploadSuccess={(value) => void handleQuickMediaUpload(value)}
+      />
 
       <div
         ref={viewportRef}
         className={cn(
-          "relative min-h-0 flex-1 overflow-hidden bg-[var(--ui-surface-0)]",
+          "relative min-h-0 flex-1 overflow-hidden bg-transparent",
           isPanning ? "cursor-grabbing" : "cursor-grab"
         )}
         onPointerDown={handleViewportPointerDown}
@@ -840,14 +829,16 @@ export function PlaygroundWorkbench({ workbenchId }: { workbenchId: string }) {
         onWheel={handleViewportWheel}
         onDoubleClick={(event) => void handleViewportDoubleClick(event)}
       >
-        <div
+        <motion.div
           ref={surfaceRef}
           data-bench-background="true"
-          className="absolute left-0 top-0 overflow-hidden bg-[var(--ui-surface-0)]"
+          className="absolute left-0 top-0 bg-transparent"
           style={{
             width: surfaceWidth,
             height: surfaceHeight,
-            transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.scale})`,
+            x: camera.x,
+            y: camera.y,
+            scale: camera.scale,
             transformOrigin: "0 0",
           }}
           onDragOver={handleDragOver}
@@ -858,8 +849,8 @@ export function PlaygroundWorkbench({ workbenchId }: { workbenchId: string }) {
           {items.length === 0 && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <EmptyState
-                title="This bench is ready for evidence"
-                description="Observations, attempts, and proof settle here as the project takes shape."
+                title="This bench is still clean"
+                description="Add your first attempt, note, or reference when you are ready."
                 className="pointer-events-none max-w-lg"
               />
             </div>
@@ -909,7 +900,7 @@ export function PlaygroundWorkbench({ workbenchId }: { workbenchId: string }) {
               <div
                 className={cn(
                   "rounded-[var(--ui-radius-md)] transition-all",
-                  selectedItemId === item.id && "ring-2 ring-[rgba(204,120,92,0.8)] ring-offset-2 ring-offset-[var(--ui-surface-0)] shadow-[0_0_0_1px_rgba(204,120,92,0.18)]"
+                  selectedItemId === item.id && "selected-workbench-item"
                 )}
               >
                 <WorkbenchBenchItem item={item} autoFocusSticky={focusedStickyId === item.id} />
@@ -920,12 +911,39 @@ export function PlaygroundWorkbench({ workbenchId }: { workbenchId: string }) {
           {isDraggingOver && (
             <div className="pointer-events-none absolute inset-4 rounded-[var(--ui-radius-md)] border border-dashed border-[rgba(204,120,92,0.7)] bg-[var(--ui-accent-soft)]" />
           )}
-        </div>
+        </motion.div>
+      </div>
+
+      <div className="create-shelf" aria-label="Create item shortcuts">
+        <button type="button" onClick={() => onCreateRequest?.("observation")} className="create-shelf-button" data-testid="btn-create-observation-flow">
+          <NotebookPen className="h-4 w-4 text-[var(--ui-accent-note)]" />
+          Note
+        </button>
+        <button type="button" onClick={() => onCreateRequest?.("reference")} className="create-shelf-button" data-testid="btn-create-reference-flow">
+          <Library className="h-4 w-4 text-[var(--ui-info)]" />
+          Reference
+        </button>
+        <button type="button" onClick={() => onCreateRequest?.("attempt")} className="create-shelf-button" data-testid="item-type-card-attempt">
+          <Hammer className="h-4 w-4 text-[var(--ui-text-2)]" />
+          Attempt
+        </button>
+        <button type="button" onClick={() => onCreateRequest?.("question")} className="create-shelf-button" data-testid="btn-create-question-flow">
+          <MessageCircleQuestion className="h-4 w-4 text-[var(--ui-danger)]" />
+          Question
+        </button>
+        <button type="button" onClick={() => onCreateRequest?.("breakthrough")} className="create-shelf-button" data-testid="btn-create-breakthrough-flow">
+          <Sparkles className="h-4 w-4 text-[var(--ui-success)]" />
+          Breakthrough
+        </button>
+        <button type="button" onClick={() => onCreateRequest?.("import")} className="create-shelf-button" data-testid="btn-create-import-flow">
+          <Import className="h-4 w-4 text-[var(--ui-text-2)]" />
+          Import
+        </button>
       </div>
 
       {contextMenu && selectedContextItem && (
         <div
-          className="absolute z-30 min-w-52 rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-elevated)] p-1 shadow-[var(--ui-shadow-2)] backdrop-blur"
+          className="absolute z-30 min-w-52 rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-elevated)] p-1 shadow-[var(--ui-shadow-2)]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
           <button
@@ -959,7 +977,6 @@ export function PlaygroundWorkbench({ workbenchId }: { workbenchId: string }) {
         </div>
       )}
 
-      {selectedItem && <WorkbenchSelectionPanel item={selectedItem} />}
     </div>
   );
 }

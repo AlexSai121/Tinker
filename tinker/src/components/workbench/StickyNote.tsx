@@ -67,12 +67,13 @@ export function StickyNote({ item, autoFocus = false }: Props) {
 
   return (
     <article
-      className="flex min-h-[220px] w-[260px] flex-col overflow-hidden rounded-[var(--ui-radius-lg)] border border-[rgba(204,120,92,0.3)] bg-[#FAF9F5] text-[#141413] shadow-[var(--ui-shadow-1)]"
+      className="item-material-card flex min-h-[220px] w-[260px] rotate-[-1deg] flex-col overflow-hidden text-[var(--ui-text-1)]"
+      style={{ "--item-accent": "var(--ui-accent-note)" } as React.CSSProperties}
       data-testid="item-card-sticky"
     >
-      <div className="flex items-center justify-between border-b border-[rgba(204,120,92,0.22)] bg-[rgba(204,120,92,0.1)] px-3 py-2">
-        <span className="text-[10px] font-semibold uppercase text-[#C10801]">Sticky</span>
-        <Pin className="h-3.5 w-3.5 text-[#C10801]" />
+      <div className="flex items-center justify-between border-b border-[rgba(157,120,50,0.22)] bg-[rgba(235,203,122,0.2)] px-3 py-2">
+        <span className="text-[10px] font-semibold uppercase text-[#6f5520]">Sticky</span>
+        <Pin className="h-3.5 w-3.5 text-[#6f5520]" />
       </div>
 
       <input
@@ -82,7 +83,7 @@ export function StickyNote({ item, autoFocus = false }: Props) {
         onBlur={() => void handleCommit()}
         onPointerDown={(event) => event.stopPropagation()}
         onDoubleClick={(event) => event.stopPropagation()}
-        className="border-b border-[rgba(204,120,92,0.18)] bg-transparent px-4 py-2 text-sm font-semibold text-[#141413] outline-none placeholder:text-[#6C6A64]"
+        className="border-b border-[rgba(157,120,50,0.16)] bg-transparent px-4 py-2 text-sm font-semibold text-[var(--ui-text-1)] outline-none placeholder:text-[var(--ui-text-3)]"
         placeholder="Title"
         data-testid={`sticky-note-title-${item.id}`}
       />
@@ -94,7 +95,7 @@ export function StickyNote({ item, autoFocus = false }: Props) {
         onBlur={() => void handleCommit()}
         onPointerDown={(event) => event.stopPropagation()}
         onDoubleClick={(event) => event.stopPropagation()}
-        className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-6 text-[#141413] outline-none placeholder:text-[#6C6A64]"
+        className="item-handwriting min-h-0 flex-1 resize-none bg-transparent px-4 py-3 outline-none placeholder:text-[var(--ui-text-3)]"
         placeholder="Jot it down..."
         data-testid={`sticky-note-input-${item.id}`}
       />

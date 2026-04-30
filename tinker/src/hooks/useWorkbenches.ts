@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getWorkbenchesByShop, getWorkbenchById, createWorkbench, updateWorkbench, deleteWorkbench, archiveWorkbench, updateDust } from "../data/workbenches";
+import { getWorkbenchesByShop, getWorkbenchById, createWorkbench, updateWorkbench, deleteWorkbench, archiveWorkbench, restoreWorkbench, updateDust } from "../data/workbenches";
 import { queryKeys } from "./queryKeys";
 import type { Workbench, WorkbenchInsert, WorkbenchUpdate } from "../types";
 import { getAllWorkbenches } from "../data/workbenches";
@@ -70,6 +70,18 @@ export function useArchiveWorkbench() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: archiveWorkbench,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workbenches() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workbenches(data.shopId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workbench(data.id) });
+    },
+  });
+}
+
+export function useRestoreWorkbench() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: restoreWorkbench,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.workbenches() });
       queryClient.invalidateQueries({ queryKey: queryKeys.workbenches(data.shopId) });

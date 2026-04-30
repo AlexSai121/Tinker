@@ -5,6 +5,9 @@
     "install": "npm install --prefix tinker",
     "dev": "npm run dev --prefix tinker",
     "build": "npm run build --prefix tinker",
+    "design:lint": "npm run design:lint --prefix tinker",
+    "design:export:tailwind": "npm run design:export:tailwind --prefix tinker",
+    "design:export:dtcg": "npm run design:export:dtcg --prefix tinker",
     "test": "npm run test --prefix tinker"
   }
 }

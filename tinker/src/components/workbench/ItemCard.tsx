@@ -9,6 +9,8 @@ import { decodeStructuredItemContent } from "../../utils/itemContent";
 import { mediaLabelFromPath, mediaSrcFromPath } from "../../utils/media";
 import { useUiStore } from "../../stores/uiStore";
 import { AnimatedButton } from "../shared/AnimatedButton";
+import { useResponsiveLayout } from "../../hooks/useResponsiveLayout";
+import { cn } from "../../utils/cn";
 
 interface Props {
   item: Item;
@@ -16,30 +18,67 @@ interface Props {
   scars: Scar[];
 }
 
+const ITEM_ACCENTS: Record<string, string> = {
+  observation: "var(--ui-accent-note)",
+  reference: "var(--ui-accent-reference)",
+  attempt: "var(--ui-accent-attempt)",
+  question: "var(--ui-accent-question)",
+  breakthrough: "var(--ui-accent-breakthrough)",
+  sticky: "var(--ui-accent-note)",
+};
+
 export function ItemCard({ item, media, scars }: Props) {
   const openModal = useUiStore((s) => s.openModal);
+  const { isTabletLayout } = useResponsiveLayout();
   const stopPointer = (event: React.PointerEvent<HTMLElement>) => event.stopPropagation();
   const structured = decodeStructuredItemContent(item);
+  const title = structured?.title;
   const contentText = structured?.content ?? item.content;
   const whyThisMatters = structured?.whyThisMatters ?? "";
   const sourceUrl = structured?.sourceUrl;
   const attemptWhat = structured?.attemptWhat;
   const attemptResult = structured?.attemptResult;
   const attemptTools = structured?.attemptTools ?? [];
+  const outcome = structured?.outcome;
+  const confidence = structured?.confidence;
+
+  const getCardStyle = () => {
+    if (scars.length > 0) return "bg-[#fae8e5] border border-[#f5d2cd] shadow-sm"; // Show as failure if it has scars
+    switch (item.type) {
+      case "observation": return "bg-[#fcf5de] border border-[#f5e6b3] shadow-sm";
+      case "breakthrough": return "bg-[#e8f2e6] border border-[#d2e8cd] shadow-sm";
+      default: return "bg-white border border-[var(--ui-border)] shadow-[var(--ui-shadow-card)]";
+    }
+  };
+
+  const getTapeColor = () => {
+    if (scars.length > 0) return "bg-[#e6958a]";
+    switch (item.type) {
+      case "observation": return "bg-[#e6c35c]";
+      case "breakthrough": return "bg-[#7bb371]";
+      case "reference": return "bg-[#8ba6c1]";
+      case "attempt": return "bg-[#c4beb8]";
+      default: return "bg-[var(--ui-border-strong)]";
+    }
+  };
 
   return (
     <motion.div
-      className="flex flex-col gap-3 rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-1)] p-4 transition-colors hover:border-[var(--ui-border-strong)]"
+      className={cn("flex flex-col gap-3 p-4 rounded-xl relative overflow-hidden transition-colors hover:border-[var(--ui-border-strong)]", getCardStyle())}
+      style={{ "--item-accent": ITEM_ACCENTS[item.type] ?? "var(--ui-accent-note)" } as React.CSSProperties}
       data-testid={`item-card-${item.type}`}
       whileHover={{ y: -1 }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
     >
-      <div className="flex justify-between items-start">
-        <div className="flex items-center gap-2">
-          <TypeBadge type={item.type} />
+      <div className={cn("absolute top-3 right-3 w-2.5 h-2.5 rounded-full shadow-inner opacity-80", getTapeColor())} />
+      <div className="flex justify-between items-start pt-1">
+        <div className="flex flex-col gap-2">
+          <div className="text-[9px] font-bold tracking-widest text-black/40 uppercase">
+            {item.type}
+          </div>
           {scars.length > 0 && (
             <motion.span
-              className="h-2.5 w-2.5 rounded-full bg-[var(--ui-danger)]"
+              className="h-2 w-2 rounded-full bg-[var(--ui-danger)]"
               title={`${scars.length} scar${scars.length === 1 ? "" : "s"} tagged`}
               data-testid="scar-indicator"
               initial={{ scale: 0 }}
@@ -48,13 +87,17 @@ export function ItemCard({ item, media, scars }: Props) {
             />
           )}
         </div>
-        <span className="text-xs text-[var(--ui-text-3)]" title={item.createdAt.toString()}>
-          {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
-        </span>
       </div>
 
-      <div className="whitespace-pre-wrap break-words text-sm text-[var(--ui-text-2)]">
-        {contentText}
+      <div className="space-y-2">
+        {title && (
+          <div className="pr-5 text-[28px] leading-tight tracking-[-0.02em] text-[#1f1b18]">
+            {title}
+          </div>
+        )}
+        <div className="item-handwriting whitespace-pre-wrap break-words pr-5 font-[var(--ui-font-hand)] text-[15px] leading-relaxed text-[#2a2622]">
+          {contentText}
+        </div>
       </div>
 
       {sourceUrl && (
@@ -70,14 +113,14 @@ export function ItemCard({ item, media, scars }: Props) {
       )}
 
       {whyThisMatters && (
-        <div className="mt-2 rounded-[var(--ui-radius-md)] border border-[rgba(93,184,114,0.28)] bg-[var(--ui-success-soft)] p-2 text-xs">
+        <div className="mt-2 rounded-[var(--ui-radius-sm)] border border-[rgba(102,138,91,0.24)] bg-[var(--ui-success-soft)] p-2 text-xs">
           <span className="mb-1 block font-semibold text-[var(--ui-success)]">Why this matters:</span>
           <span className="text-[var(--ui-text-2)]">{whyThisMatters}</span>
         </div>
       )}
 
       {item.type === "attempt" && (attemptWhat || attemptResult) && (
-        <div className="grid gap-2 rounded-[var(--ui-radius-sm)] border border-[var(--ui-border)] bg-[var(--ui-surface-2)] p-3 text-xs">
+        <div className="grid gap-2 rounded-[var(--ui-radius-sm)] border border-[var(--ui-border)] bg-[rgba(255,253,247,0.42)] p-3 text-xs">
           {attemptWhat && (
             <div>
               <span className="mb-1 block font-semibold text-[var(--ui-accent)]">What you tried</span>
@@ -102,10 +145,17 @@ export function ItemCard({ item, media, scars }: Props) {
         </div>
       )}
 
+      {(outcome || confidence !== undefined) && (
+        <div className="flex items-center gap-2 text-[11px] text-[var(--ui-text-2)]">
+          {outcome && <span className="rounded-full bg-white/55 px-2 py-1 capitalize">{outcome}</span>}
+          {confidence !== undefined && <span>{confidence}% confidence</span>}
+        </div>
+      )}
+
       {media.length > 0 && (
         <div className="mt-2 grid grid-cols-2 gap-2">
           {media.map(m => (
-            <div key={m.id} className="overflow-hidden rounded-[var(--ui-radius-sm)] border border-[var(--ui-border)] bg-[var(--ui-surface-0)]">
+            <div key={m.id} className="overflow-hidden rounded-[var(--ui-radius-sm)] border border-[var(--ui-border)] bg-[var(--ui-bg-muted)]">
               {m.type === "photo" ? (
                 <img
                   src={mediaSrcFromPath(m.path)}
@@ -144,7 +194,7 @@ export function ItemCard({ item, media, scars }: Props) {
         )}
         
         <div className="flex flex-wrap items-center gap-3">
-          {item.type === "attempt" && <ScarTagger itemId={item.id} />}
+          {item.type === "attempt" && !isTabletLayout && <ScarTagger itemId={item.id} />}
           <AnimatedButton
             type="button"
             onClick={() => openModal({ type: "createBridge", payload: { sourceItemId: item.id } })}

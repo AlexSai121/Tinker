@@ -8,6 +8,7 @@ export interface SegmentedTabOption<T extends string> {
   icon?: React.ReactNode;
   badge?: React.ReactNode;
   testId?: string;
+  ariaLabel?: string;
 }
 
 interface SegmentedTabsProps<T extends string> {
@@ -39,6 +40,8 @@ export function SegmentedTabs<T extends string>({
             onClick={() => onChange(option.value)}
             className={cn("segmented-tab", isActive && "is-active")}
             data-testid={option.testId}
+            aria-label={option.ariaLabel}
+            aria-pressed={isActive}
           >
             {isActive && (
               <motion.span

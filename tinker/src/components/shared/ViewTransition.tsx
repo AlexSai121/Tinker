@@ -16,11 +16,17 @@ const variants = {
     opacity: 1,
     y: 0,
     scale: 1,
+    transition: {
+      type: "spring",
+      stiffness: 400,
+      damping: 35,
+      mass: 0.8,
+    },
   },
   exit: {
     opacity: 0,
-    y: -8,
     scale: 0.995,
+    transition: { duration: 0.1, ease: "easeOut" },
   },
 };
 
@@ -29,17 +35,11 @@ export function ViewTransition({ viewKey, children }: ViewTransitionProps) {
     <AnimatePresence mode="wait">
       <motion.div
         key={viewKey}
-        className="h-full w-full"
+        className="h-full w-full origin-top"
         variants={variants}
         initial="enter"
         animate="center"
         exit="exit"
-        transition={{
-          type: "spring",
-          stiffness: 350,
-          damping: 30,
-          mass: 0.8,
-        }}
       >
         {children}
       </motion.div>

@@ -14,6 +14,7 @@ const SkillPortfolio = lazy(() => import("./components/dashboard/SkillPortfolio"
 const LockerView = lazy(() => import("./components/dashboard/LockerView").then((module) => ({ default: module.LockerView })));
 const WeeklyReviewView = lazy(() => import("./components/dashboard/WeeklyReviewView").then((module) => ({ default: module.WeeklyReviewView })));
 const SearchResultsView = lazy(() => import("./components/dashboard/SearchResultsView").then((module) => ({ default: module.SearchResultsView })));
+const RecentlyOpenedView = lazy(() => import("./components/dashboard/RecentlyOpenedView").then((module) => ({ default: module.RecentlyOpenedView })));
 import { OnboardingView } from './components/onboarding/OnboardingView';
 
 const queryClient = new QueryClient({
@@ -53,11 +54,11 @@ function AppContent() {
   if (trimmedSearch.length > 0) {
     return (
       <AppShell>
-        <Suspense fallback={dashboardFallback}>
-          <ViewTransition viewKey={`search-${trimmedSearch}`}>
+        <ViewTransition viewKey={`search-${trimmedSearch}`}>
+          <Suspense fallback={dashboardFallback}>
             <SearchResultsView query={trimmedSearch} />
-          </ViewTransition>
-        </Suspense>
+          </Suspense>
+        </ViewTransition>
       </AppShell>
     );
   }
@@ -122,6 +123,10 @@ function AppContent() {
       return <WeeklyReviewView />;
     }
 
+    if (viewMode === "recentlyOpened") {
+      return <RecentlyOpenedView />;
+    }
+
     return (
       <div className="flex h-full items-center justify-center p-6">
         <EmptyState
@@ -135,11 +140,11 @@ function AppContent() {
 
   return (
     <AppShell>
-      <Suspense fallback={dashboardFallback}>
-        <ViewTransition viewKey={viewKey}>
+      <ViewTransition viewKey={viewKey}>
+        <Suspense fallback={dashboardFallback}>
           {content}
-        </ViewTransition>
-      </Suspense>
+        </Suspense>
+      </ViewTransition>
     </AppShell>
   );
 }

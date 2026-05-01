@@ -26,6 +26,7 @@ import { useAllItems } from "../../hooks/useItems";
 import { useImportData } from "../../hooks/useDataTransfer";
 import { AnimatedButton } from "../shared/AnimatedButton";
 import { SmartTooltip } from "../shared/SmartTooltip";
+import { SeedDataButton } from "../shared/SeedDataButton";
 import { cn } from "../../utils/cn";
 
 const schema = z.object({
@@ -538,6 +539,7 @@ export function SettingsModal() {
                       <Upload className="h-4 w-4" />
                       Import Replace
                     </AnimatedButton>
+                    <SeedDataButton />
                   </div>
                   {dataMessage && (
                     <div className="mt-4 rounded-[var(--ui-radius-sm)] border border-[var(--ui-border)] bg-[var(--ui-surface-2)] px-3 py-2 text-sm text-[var(--ui-text-2)]">

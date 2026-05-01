@@ -13,6 +13,7 @@ export type ViewMode =
   | "constellation"
   | "portfolio"
   | "locker"
+  | "recentlyOpened"
   | "review";
 
 export type ProjectViewMode = "board" | "timeline" | "gallery";
@@ -43,6 +44,7 @@ interface UiState {
 
   // Onboarding
   onboardingCompleted: boolean;
+  tourActive: boolean;
 
   // Theme (for non-CSS contexts like Konva canvas)
   resolvedTheme: "light" | "dark";
@@ -64,6 +66,8 @@ interface UiState {
   setSidebarWidth: (width: number) => void;
   setResolvedTheme: (theme: "light" | "dark") => void;
   completeOnboarding: () => void;
+  startTour: () => void;
+  stopTour: () => void;
   resetUi: () => void;
 }
 
@@ -80,6 +84,7 @@ const initialUiState = {
   sidebarOpen: true,
   sidebarWidth: 240,
   onboardingCompleted: false,
+  tourActive: false,
   resolvedTheme: "light" as "light" | "dark",
 };
 
@@ -155,11 +160,13 @@ export const useUiStore = create<UiState>()(
 
         setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
-        setSidebarWidth: (width) => set({ sidebarWidth: Math.max(240, Math.min(320, width)) }),
+        setSidebarWidth: (width) => set({ sidebarWidth: Math.max(200, Math.min(480, width)) }),
 
         setResolvedTheme: (theme) => set({ resolvedTheme: theme }),
 
         completeOnboarding: () => set({ onboardingCompleted: true }),
+        startTour: () => set({ tourActive: true, onboardingCompleted: true }),
+        stopTour: () => set({ tourActive: false }),
 
         resetUi: () => {
           getUiStorage().removeItem(UI_STORE_PERSIST_KEY);

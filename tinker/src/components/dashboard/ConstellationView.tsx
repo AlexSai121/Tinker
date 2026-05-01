@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
-import * as THREE from "three";
-import ForceGraph3D, { type ForceGraph3DInstance, type LinkObject, type NodeObject } from "3d-force-graph";
+import ForceGraph from "force-graph";
 import {
   ArrowUpRight,
   GitBranchPlus,
@@ -34,7 +33,7 @@ import {
 import { getWorkbenchDisplayName, isWorkbenchArchived } from "../../data/workbenches";
 import type { Bridge, Item, Workbench } from "../../types";
 
-interface GraphNode extends NodeObject {
+interface GraphNode {
   id: string;
   shopId: string;
   shopName: string;
@@ -43,9 +42,12 @@ interface GraphNode extends NodeObject {
   val: number;
   itemCount: number;
   bridgeCount: number;
+  x?: number;
+  y?: number;
+  z?: number;
 }
 
-interface GraphLink extends LinkObject<GraphNode> {
+interface GraphLink {
   id: string;
   source: string | GraphNode;
   target: string | GraphNode;
@@ -269,7 +271,7 @@ export function ConstellationView() {
   const [graphFailed, setGraphFailed] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
   const graphContainerRef = useRef<HTMLDivElement | null>(null);
-  const graphRef = useRef<ForceGraph3DInstance<GraphNode, GraphLink> | null>(null);
+  const graphRef = useRef<any>(null);
   const { data: shops = [], isLoading: shopsLoading } = useShops();
   const { data: workbenches = [], isLoading: workbenchesLoading, isError } = useAllWorkbenches();
   const { data: items = [], isLoading: itemsLoading } = useAllItems();
@@ -372,19 +374,17 @@ export function ConstellationView() {
 
   const focusNode = (node: GraphNode) => {
     const graph = graphRef.current;
-    if (!graph || typeof node.x !== "number" || typeof node.y !== "number" || typeof node.z !== "number") {
+    if (!graph || typeof node.x !== "number" || typeof node.y !== "number") {
       return;
     }
 
-    graph.cameraPosition(
-      { x: node.x * 1.45, y: node.y * 1.45, z: (node.z || 1) * 1.45 + 170 },
-      { x: node.x, y: node.y, z: node.z },
-      650
-    );
+    graph.centerAt(node.x, node.y, 650);
+    graph.zoom(1.8, 650);
   };
 
   const resetCamera = () => {
-    graphRef.current?.cameraPosition({ x: 0, y: 0, z: 560 }, { x: 0, y: 0, z: 0 }, 650);
+    graphRef.current?.centerAt(0, 0, 650);
+    graphRef.current?.zoom(1, 650);
   };
 
   const fitGraph = () => {
@@ -407,29 +407,29 @@ export function ConstellationView() {
       return undefined;
     }
 
-    let graph: ForceGraph3DInstance<GraphNode, GraphLink> | null = null;
+    let graph: any = null;
 
     try {
-      graph = new ForceGraph3D(container, {
-        controlType: "orbit",
-        rendererConfig: { antialias: true, alpha: true },
-      }) as unknown as ForceGraph3DInstance<GraphNode, GraphLink>;
+      graph = (ForceGraph as any)()(container);
 
       graph
         .backgroundColor(graphTheme.background)
-        .showNavInfo(false)
         .nodeId("id")
-        .linkResolution(8)
-        .linkOpacity(0.42)
-        .linkCurvature(0.08)
-        .linkHoverPrecision(6)
+        .linkDirectionalParticles((link: any) => (link.id === selectedBridgeId ? 3 : link.freshness === "fresh" ? 1 : 0))
+        .linkDirectionalParticleWidth((link: any) => (link.id === selectedBridgeId ? 2.4 : 1.4))
+        .linkDirectionalParticleColor(() => graphTheme.accent)
+        .linkColor((link: any) => {
+          if (link.id === selectedBridgeId) {
+            return graphTheme.text;
+          }
+          return link.color;
+        })
+        .linkWidth((link: any) => (link.id === selectedBridgeId ? Math.max(1.4, link.effectiveStrength * 0.9) : Math.max(0.4, link.effectiveStrength * 0.45)))
         .warmupTicks(90)
         .cooldownTicks(180)
         .enableNodeDrag(true)
-        .nodeLabel((node) => graphLabel(node))
-        .linkLabel((link) => linkLabel(link))
-        .onNodeClick((node) => handleOpenNode(node))
-        .onLinkClick((link) => setSelectedBridgeId(link.id))
+        .onNodeClick((node: any) => handleOpenNode(node))
+        .onLinkClick((link: any) => setSelectedBridgeId(link.id))
         .onBackgroundClick(() => setSelectedBridgeId(null));
 
       graphRef.current = graph;
@@ -447,10 +447,16 @@ export function ConstellationView() {
 
     return () => {
       resizeObserver.disconnect();
-      graph?._destructor();
+      try {
+        if (typeof graph?._destructor === "function") {
+          graph._destructor();
+        }
+      } catch (e) {
+        console.error("Failed to destroy graph:", e);
+      }
       graphRef.current = null;
     };
-  }, [graphFailed, graphTheme.background]);
+  }, [graphFailed, graphTheme]);
 
   useEffect(() => {
     const graph = graphRef.current;
@@ -460,64 +466,45 @@ export function ConstellationView() {
 
     graph
       .graphData(graphData)
-      .nodeThreeObject((node) => {
+      .nodeCanvasObject((node: any, ctx: any, globalScale: number) => {
+        if (typeof node.x !== "number" || typeof node.y !== "number") return;
         const graphNode = node as GraphNode;
         const normalized = query.trim().toLowerCase();
         const isMatch = normalized && [graphNode.name, graphNode.shopName].some((value) => value.toLowerCase().includes(normalized));
-        
-        const dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 1));
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d")!;
-        const font = "600 14px Inter, sans-serif";
 
-        context.font = font;
-        const textWidth = Math.ceil(context.measureText(graphNode.name).width);
-        const width = textWidth + 24;
-        const height = 28;
+        const label = graphNode.name;
+        const fontSize = Math.max(12, 14 / globalScale);
+        ctx.font = `600 ${fontSize}px Inter, sans-serif`;
+        const textWidth = ctx.measureText(label).width;
+        const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 1.5); // padding
 
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
-        canvas.style.width = `${width}px`;
-        canvas.style.height = `${height}px`;
-
-        const ctx = canvas.getContext("2d")!;
-        ctx.scale(dpr, dpr);
-        ctx.font = font;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        
+        // Draw panel
         ctx.fillStyle = isMatch ? graphTheme.panelFillMatch : graphTheme.panelFill;
-        ctx.fillRect(0, 0, width, height);
+        ctx.beginPath();
+        ctx.roundRect(
+           node.x! - bckgDimensions[0] / 2, 
+           node.y! - bckgDimensions[1] / 2, 
+           bckgDimensions[0], 
+           bckgDimensions[1], 
+           4 / globalScale // border radius
+        );
+        ctx.fill();
 
         ctx.strokeStyle = isMatch ? graphTheme.panelStrokeMatch : graphTheme.panelStroke;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+        ctx.lineWidth = 1 / globalScale;
+        ctx.stroke();
 
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
         ctx.fillStyle = isMatch ? graphTheme.text : graphTheme.textSubtle;
-        ctx.fillText(graphNode.name, width / 2, height / 2 + 0.5);
-        
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.needsUpdate = true;
-        
-        const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
-        const sprite = new THREE.Sprite(material);
-        
-        sprite.scale.set(width * 0.45, height * 0.45, 1);
-        return sprite;
+        ctx.fillText(label, node.x!, node.y!);
       })
-      .linkColor((link) => {
-        if (link.id === selectedBridgeId) {
-          return graphTheme.text;
-        }
-        return link.color;
-      })
-      .linkWidth((link) => (link.id === selectedBridgeId ? Math.max(1.4, link.effectiveStrength * 0.9) : Math.max(0.4, link.effectiveStrength * 0.45)))
-      .linkDirectionalParticles((link) => (link.id === selectedBridgeId ? 3 : link.freshness === "fresh" ? 1 : 0))
-      .linkDirectionalParticleWidth((link) => (link.id === selectedBridgeId ? 2.4 : 1.4))
-      .linkDirectionalParticleColor(() => graphTheme.accent);
+      .nodePointerAreaPaint((node: any, color: string, ctx: any) => {
+        if (typeof node.x !== "number" || typeof node.y !== "number") return;
+        ctx.fillStyle = color;
+        const bckgDimensions = [100, 20]; // approx sizes for interaction
+        ctx.fillRect(node.x! - bckgDimensions[0] / 2, node.y! - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
+      });
 
     window.setTimeout(() => fitGraph(), 80);
   }, [graphData, graphTheme, query, selectedBridgeId]);

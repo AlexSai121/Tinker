@@ -17,8 +17,9 @@ import {
   Scissors,
   Plug,
   Beaker,
+  Trash2,
 } from "lucide-react";
-import { useShops } from "../../hooks/useShops";
+import { useShops, useDeleteShop } from "../../hooks/useShops";
 import { useAllWorkbenches, useWorkbenches } from "../../hooks/useWorkbenches";
 import { useResponsiveLayout } from "../../hooks/useResponsiveLayout";
 import { useUiStore, type ViewMode } from "../../stores/uiStore";
@@ -92,6 +93,7 @@ function ShopRow({ count, shop }: { count: number; shop: Shop }) {
   const setSidebarOpen = useUiStore((state) => state.setSidebarOpen);
   const setViewMode = useUiStore((state) => state.setViewMode);
   const { isTabletLayout } = useResponsiveLayout();
+  const deleteShop = useDeleteShop();
   const Icon = getShopIcon(shop.name);
   const visibleProjects = workbenches.filter((workbench) => !workbench.name.includes("[ARCHIVED]"));
 
@@ -117,6 +119,17 @@ function ShopRow({ count, shop }: { count: number; shop: Shop }) {
     }
   };
 
+  const handleDeleteShop = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (window.confirm(`Are you sure you want to delete the workshop "${shop.name}" and all its projects? This cannot be undone.`)) {
+      await deleteShop.mutateAsync(shop.id);
+      if (activeShopId === shop.id) {
+        setActiveShop(null);
+        setActiveWorkbench(null);
+      }
+    }
+  };
+
   return (
     <div>
       <div
@@ -136,17 +149,30 @@ function ShopRow({ count, shop }: { count: number; shop: Shop }) {
           <span className="min-w-0 flex-1 truncate font-medium text-[var(--ui-text-1)]">{shop.name}</span>
           <span className="text-xs text-[var(--ui-text-3)]">{count}</span>
         </button>
-        <AnimatedButton
-          type="button"
-          onClick={handleCreateProject}
-          variant="ghost"
-          size="icon"
-          className="mr-1 h-8 w-8 opacity-70 transition-opacity group-hover:opacity-100"
-          data-testid={`btn-create-workbench-${shop.id}`}
-          aria-label={`Create project in ${shop.name}`}
-        >
-          <Plus size={15} />
-        </AnimatedButton>
+        <div className="mr-1 flex items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <AnimatedButton
+            type="button"
+            onClick={handleCreateProject}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-[var(--ui-text-2)] hover:text-[var(--ui-text-1)]"
+            data-testid={`btn-create-workbench-${shop.id}`}
+            aria-label={`Create project in ${shop.name}`}
+          >
+            <Plus size={15} />
+          </AnimatedButton>
+          <AnimatedButton
+            type="button"
+            onClick={handleDeleteShop}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-[#d48c82] hover:bg-[#faeaea] hover:text-[#c45749]"
+            data-testid={`btn-delete-shop-${shop.id}`}
+            aria-label={`Delete ${shop.name}`}
+          >
+            <Trash2 size={15} />
+          </AnimatedButton>
+        </div>
       </div>
 
       {expanded && (
@@ -217,11 +243,6 @@ export function Sidebar() {
   return (
     <aside className="flex h-full flex-col select-none" data-testid="sidebar">
       <div className="shrink-0 px-6 pb-4 pt-6">
-        <div className="mb-5 flex items-center gap-1.5" aria-hidden="true">
-          <span className="h-3 w-3 rounded-full bg-[#d86645]" />
-          <span className="h-3 w-3 rounded-full bg-[#dca23a]" />
-          <span className="h-3 w-3 rounded-full bg-[#73a96f]" />
-        </div>
         <button
           type="button"
           onClick={() => navigate("workbench")}
@@ -234,14 +255,7 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto px-3 pb-4">
         <nav className="space-y-1">
           <NavButton active={activeView === "workbench"} icon={House} label="Workshop" onClick={() => navigate("workbench")} />
-          <NavButton
-            icon={Box}
-            label="All Projects"
-            count={activeProjects.length}
-            onClick={() => navigate("workbench")}
-          />
-          <NavButton icon={Clock3} label="Recently Opened" onClick={() => navigate("workbench")} />
-          <NavButton icon={ShieldCheck} label="Dusty Benches" count="7" onClick={() => navigate("workbench")} />
+          <NavButton active={activeView === "recentlyOpened"} icon={Clock3} label="Recently Opened" onClick={() => navigate("recentlyOpened" as ViewMode)} />
         </nav>
 
         <SidebarSection label="Shops" />

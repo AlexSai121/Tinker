@@ -10,7 +10,7 @@ import { useItemMedia } from "../../hooks/useItemMedia";
 import { useScars } from "../../hooks/useScars";
 import { useUiStore } from "../../stores/uiStore";
 import { useUpdateDust } from "../../hooks/useWorkbenches";
-import { useDeleteItem } from "../../hooks/useItems";
+import { useDeleteItem, useUpdateItem } from "../../hooks/useItems";
 import { EmptyState } from "../shared/EmptyState";
 import { SkeletonBlock } from "../shared/Skeleton";
 import { useResponsiveLayout } from "../../hooks/useResponsiveLayout";
@@ -18,7 +18,7 @@ import { cn } from "../../utils/cn";
 import { triggerHapticFeedback } from "../../utils/haptics";
 import { AnimatedButton } from "../shared/AnimatedButton";
 import { SegmentedTabs } from "../shared/SegmentedTabs";
-import { decodeStructuredItemContent } from "../../utils/itemContent";
+import { decodeStructuredItemContent, encodeStructuredItemContent } from "../../utils/itemContent";
 import { mediaLabelFromPath, mediaSrcFromPath } from "../../utils/media";
 import type { Item, Workbench } from "../../types";
 import { CREATABLE_ITEM_TYPES } from "../../utils/constants";
@@ -47,6 +47,31 @@ function SelectedItemInspector({
   const siblingAttempt = items.find((candidate) => candidate.id !== item.id && candidate.type === "attempt");
   const linkedLabel = decodeStructuredItemContent(siblingAttempt ?? item)?.title || siblingAttempt?.content || "No linked item yet";
   const deleteLabel = `Delete ${title}`;
+  const updateItem = useUpdateItem();
+  const [localTitle, setLocalTitle] = useState(title);
+  const [localBody, setLocalBody] = useState(body);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingBody, setIsEditingBody] = useState(false);
+
+  useEffect(() => {
+    setLocalTitle(title);
+    setLocalBody(body);
+  }, [title, body]);
+
+  const handleSave = async () => {
+    if (localTitle.trim() === title && localBody.trim() === body) return;
+    const currentStructured = decodeStructuredItemContent(item) || {};
+    const newContent = encodeStructuredItemContent({
+      version: (currentStructured as any).version || 1,
+      ...currentStructured,
+      title: localTitle.trim(),
+      content: localBody.trim(),
+    });
+    await updateItem.mutateAsync({
+      id: item.id,
+      data: { content: newContent, updatedAt: new Date() },
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -54,12 +79,51 @@ function SelectedItemInspector({
         <div className="mb-3 inline-block rounded bg-[#fceec9] px-2 py-1 text-[10px] font-bold tracking-wider text-[#b08226] uppercase">
           {item.type}
         </div>
-        <h2 className="font-[var(--ui-font-display)] text-[1.65rem] font-medium leading-tight text-[var(--ui-text-1)]">
-          {title}
-        </h2>
-        <p className="mt-4 text-[0.95rem] leading-7 text-[var(--ui-text-2)]">
-          {body || "No detail has been added yet."}
-        </p>
+        {isEditingTitle ? (
+          <input
+            className="w-full bg-transparent font-[var(--ui-font-display)] text-[1.65rem] font-medium leading-tight text-[var(--ui-text-1)] outline-none ring-2 ring-[var(--ui-accent-soft)] rounded px-1"
+            value={localTitle}
+            onChange={(e) => setLocalTitle(e.target.value)}
+            onBlur={() => {
+              setIsEditingTitle(false);
+              void handleSave();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
+            autoFocus
+          />
+        ) : (
+          <h2
+            className="font-[var(--ui-font-display)] text-[1.65rem] font-medium leading-tight text-[var(--ui-text-1)] hover:bg-[var(--ui-surface-2)] cursor-text rounded px-1 -ml-1 transition-colors"
+            onClick={() => setIsEditingTitle(true)}
+          >
+            {title}
+          </h2>
+        )}
+
+        {isEditingBody ? (
+          <textarea
+            className="mt-4 w-full min-h-[100px] resize-y bg-transparent text-[0.95rem] leading-7 text-[var(--ui-text-2)] outline-none ring-2 ring-[var(--ui-accent-soft)] rounded px-1"
+            value={localBody}
+            onChange={(e) => setLocalBody(e.target.value)}
+            onBlur={() => {
+              setIsEditingBody(false);
+              void handleSave();
+            }}
+            autoFocus
+          />
+        ) : (
+          <p
+            className="mt-4 text-[0.95rem] leading-7 text-[var(--ui-text-2)] hover:bg-[var(--ui-surface-2)] cursor-text rounded px-1 -ml-1 min-h-[4rem] transition-colors"
+            onClick={() => setIsEditingBody(true)}
+          >
+            {body || "Click to add details..."}
+          </p>
+        )}
       </div>
 
       {sourceUrl && (
@@ -176,13 +240,6 @@ function ProjectInspector({
   if (!selectedItem) {
     return (
       <div className="space-y-4">
-        <ItemCreator
-          workbenchId={workbenchId}
-          existingItems={items}
-          initialType="observation"
-          initialStep="details"
-          onCreated={onCreated}
-        />
         <SkillPanel workbenchId={workbenchId} />
       </div>
     );

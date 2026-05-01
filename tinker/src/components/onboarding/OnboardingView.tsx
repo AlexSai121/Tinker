@@ -22,23 +22,41 @@ export function OnboardingView() {
   const next = () => setStep((s) => Math.min(10, s + 1));
   const prev = () => setStep((s) => Math.max(1, s - 1));
 
-  const handleComplete = async () => {
-    try {
-      const shopId = nanoid();
-      const now = new Date();
-      await createShop.mutateAsync({
-        id: shopId,
-        name: shopName,
-        backgroundTexture: "pegboard",
-        createdAt: now,
-        updatedAt: now,
-      });
-      setActiveShop(shopId);
-    } catch (err) {
+  const handleComplete = () => {
+    const shopId = nanoid();
+    const now = new Date();
+    
+    // Optimistically proceed so the UI doesn't hang
+    setActiveShop(shopId);
+    completeOnboarding();
+    
+    createShop.mutateAsync({
+      id: shopId,
+      name: shopName,
+      backgroundTexture: "pegboard",
+      createdAt: now,
+      updatedAt: now,
+    }).catch((err) => {
       console.error("Failed to create shop during onboarding:", err);
-    } finally {
-      completeOnboarding();
-    }
+    });
+  };
+
+  const handleStartTour = () => {
+    const shopId = nanoid();
+    const now = new Date();
+    
+    setActiveShop(shopId);
+    useUiStore.getState().startTour();
+    
+    createShop.mutateAsync({
+      id: shopId,
+      name: shopName,
+      backgroundTexture: "pegboard",
+      createdAt: now,
+      updatedAt: now,
+    }).catch((err) => {
+      console.error("Failed to create shop during onboarding:", err);
+    });
   };
 
   const skipToQuestionnaire = () => setStep(5);
@@ -336,7 +354,7 @@ export function OnboardingView() {
           )}
 
           {step === 10 && (
-            <motion.div key="10" variants={slideVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col h-full text-center relative">
+            <motion.div key="10" variants={slideVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col h-full text-center relative min-h-[400px]">
               <div className="absolute inset-0 bg-[#FAF2E8] -mx-8 -my-8 px-8 py-8 flex flex-col items-center justify-center z-0">
                  <h1 className="text-4xl font-semibold font-[var(--ui-font-display)] mb-4 text-[#3D3730] z-10 relative">You're all set!</h1>
                  <p className="text-[#847B6F] text-[15px] mb-12 z-10 relative">Your workshop is ready.<br/>Let's build, learn, and tinker.</p>
@@ -345,9 +363,9 @@ export function OnboardingView() {
                     <Hexagon className="w-16 h-16 text-[#C16D3B]" />
                  </div>
 
-                 <div className="w-full space-y-3 z-10 relative mt-auto">
+                 <div className="w-full space-y-3 mt-auto">
                    <button onClick={handleComplete} className="w-full rounded-[12px] bg-[#C16D3B] text-white py-4 font-semibold hover:bg-[#A95A2E] transition-colors shadow-md text-lg tracking-wide" data-testid="btn-onboarding-complete">Go to Workshop</button>
-                   <button onClick={handleComplete} className="w-full text-[#A0988E] hover:text-[#C16D3B] text-sm py-2 font-medium transition-colors">Take a Quick Tour</button>
+                   <button onClick={handleStartTour} className="w-full text-[#A0988E] hover:text-[#C16D3B] text-sm py-2 font-medium transition-colors">Take a Quick Tour</button>
                  </div>
               </div>
             </motion.div>

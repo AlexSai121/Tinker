@@ -180,6 +180,27 @@ function createWindow(): void {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.control || input.meta) {
+      if (input.key === '=' || input.key === '+') {
+        if (mainWindow) {
+          mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5);
+        }
+        event.preventDefault();
+      } else if (input.key === '-') {
+        if (mainWindow) {
+          mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 0.5);
+        }
+        event.preventDefault();
+      } else if (input.key === '0') {
+        if (mainWindow) {
+          mainWindow.webContents.setZoomLevel(0);
+        }
+        event.preventDefault();
+      }
+    }
+  });
 }
 
 app.whenReady().then(() => {

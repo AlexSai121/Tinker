@@ -16,6 +16,7 @@ const WeeklyReviewView = lazy(() => import("./components/dashboard/WeeklyReviewV
 const SearchResultsView = lazy(() => import("./components/dashboard/SearchResultsView").then((module) => ({ default: module.SearchResultsView })));
 const RecentlyOpenedView = lazy(() => import("./components/dashboard/RecentlyOpenedView").then((module) => ({ default: module.RecentlyOpenedView })));
 import { OnboardingView } from './components/onboarding/OnboardingView';
+import { useShops } from './hooks/useShops';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,13 +33,16 @@ const queryClient = new QueryClient({
   },
 });
 
+
 function AppContent() {
+  const { data: shops, isLoading: shopsLoading } = useShops();
   const viewMode = useUiStore((s) => s.viewMode);
   const activeShopId = useUiStore((s) => s.activeShopId);
   const activeWorkbenchId = useUiStore((s) => s.activeWorkbenchId);
   const searchQuery = useUiStore((s) => s.searchQuery);
   const onboardingCompleted = useUiStore((s) => s.onboardingCompleted);
   const trimmedSearch = searchQuery.trim();
+
   const dashboardFallback = (
     <div className="grid h-full gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
       <SkeletonBlock className="h-40 w-full rounded-lg" />
@@ -47,8 +51,22 @@ function AppContent() {
     </div>
   );
 
-  if (!onboardingCompleted) {
+  // Show onboarding if not completed OR if we have no shops and no active shop selected
+  const shouldShowOnboarding = !onboardingCompleted || (shops && shops.length === 0 && !activeShopId);
+
+  if (!shopsLoading && shouldShowOnboarding) {
     return <OnboardingView />;
+  }
+
+  if (shopsLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-[var(--ui-surface-0)]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-[var(--ui-accent-soft)] border-t-[var(--ui-accent)]" />
+          <p className="text-sm font-medium text-[var(--ui-text-2)]">Initializing workshop...</p>
+        </div>
+      </div>
+    );
   }
 
   if (trimmedSearch.length > 0) {

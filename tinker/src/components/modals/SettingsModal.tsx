@@ -540,6 +540,28 @@ export function SettingsModal() {
                       Import Replace
                     </AnimatedButton>
                     <SeedDataButton />
+                    <AnimatedButton
+                      type="button"
+                      onClick={() => {
+                        useUiStore.getState().resetUi();
+                        window.location.reload();
+                      }}
+                      variant="ghost"
+                      className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                    >
+                      Reset App State
+                    </AnimatedButton>
+                    <AnimatedButton
+                      type="button"
+                      onClick={() => {
+                        // Just set onboardingCompleted to false and close
+                        useUiStore.setState({ onboardingCompleted: false });
+                        closeModal();
+                      }}
+                      variant="ghost"
+                    >
+                      See Welcome Screen
+                    </AnimatedButton>
                   </div>
                   {dataMessage && (
                     <div className="mt-4 rounded-[var(--ui-radius-sm)] border border-[var(--ui-border)] bg-[var(--ui-surface-2)] px-3 py-2 text-sm text-[var(--ui-text-2)]">

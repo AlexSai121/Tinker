@@ -9,7 +9,7 @@
 - **Constellation View:** An interactive 2D graph that visualizes the invisible threads connecting your projects across different domains.
 - **The Scar Map:** Visualize your "failed" attempts as data points, mapping out where you encountered friction and growth.
 - **Skill Portfolios:** Automatically aggregate your activity into a comprehensive overview of your professional and creative mastery.
-- **Premium Aesthetics:** A fluid, glassmorphic interface designed for 60fps performance and a premium feel.
+
 
 ## How to Test Use
 

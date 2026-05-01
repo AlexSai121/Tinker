@@ -301,7 +301,7 @@ export function ItemCreator({
     setPosition(buildInitialPosition(existingItems));
     setLastCreatedId(null);
     setMediaRequirementError("");
-  }, [existingItems, initialStepIndex, initialType, reset]);
+  }, [initialStepIndex, initialType, reset]);
 
   const nextStep = async () => {
     if (currentStep === "evidence" && itemType === "breakthrough" && pendingMedia.length === 0) {
@@ -658,6 +658,22 @@ export function ItemCreator({
                 </div>
               </>
             )}
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setStepIndex(FLOW_STEPS.indexOf("evidence"))}
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-2)] px-4 py-2.5 text-sm font-medium text-[var(--ui-text-2)] transition-colors hover:border-[var(--ui-border-strong)] hover:bg-[var(--ui-surface-3)] hover:text-[var(--ui-text-1)]"
+              >
+                <ImagePlus className="h-4 w-4" />
+                Attach images or files
+                {pendingMedia.length > 0 && (
+                  <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ui-accent)] text-[10px] font-bold text-white">
+                    {pendingMedia.length}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="mt-6 flex justify-between">

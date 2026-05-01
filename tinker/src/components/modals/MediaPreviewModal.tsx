@@ -67,6 +67,7 @@ export function MediaPreviewModal({ payload }: { payload?: Record<string, unknow
               <img
                 src={src}
                 alt={title}
+                draggable="false"
                 className="max-h-[68svh] w-auto max-w-full object-contain"
                 data-testid="media-preview-image"
               />

@@ -11,17 +11,21 @@ import { useScars } from "../../hooks/useScars";
 import { useUiStore } from "../../stores/uiStore";
 import { useUpdateDust } from "../../hooks/useWorkbenches";
 import { useDeleteItem, useUpdateItem } from "../../hooks/useItems";
+import { useCreateItemMedia, useDeleteItemMedia } from "../../hooks/useItemMedia";
 import { EmptyState } from "../shared/EmptyState";
 import { SkeletonBlock } from "../shared/Skeleton";
 import { useResponsiveLayout } from "../../hooks/useResponsiveLayout";
 import { cn } from "../../utils/cn";
 import { triggerHapticFeedback } from "../../utils/haptics";
 import { AnimatedButton } from "../shared/AnimatedButton";
+import { MediaUploader } from "../shared/MediaUploader";
 import { SegmentedTabs } from "../shared/SegmentedTabs";
 import { decodeStructuredItemContent, encodeStructuredItemContent } from "../../utils/itemContent";
 import { mediaLabelFromPath, mediaSrcFromPath } from "../../utils/media";
 import type { Item, Workbench } from "../../types";
 import { CREATABLE_ITEM_TYPES } from "../../utils/constants";
+import { nanoid } from "nanoid";
+import { ImagePlus } from "lucide-react";
 
 type CreatableType = (typeof CREATABLE_ITEM_TYPES)[number];
 
@@ -38,6 +42,8 @@ function SelectedItemInspector({
 }) {
   const { data: media = [] } = useItemMedia(item.id);
   const { data: scars = [] } = useScars(item.id);
+  const createItemMedia = useCreateItemMedia();
+  const deleteItemMedia = useDeleteItemMedia();
   const structured = decodeStructuredItemContent(item);
   const title = structured?.title || (item.type === "sticky" ? "Pinned note" : `${item.type[0].toUpperCase()}${item.type.slice(1)}`);
   const body = (structured?.content ?? item.content).trim();
@@ -138,20 +144,68 @@ function SelectedItemInspector({
         </a>
       )}
 
-      {preview && (
-        <figure className="overflow-hidden rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-bg-muted)]">
-          {preview.type === "photo" ? (
-            <img src={mediaSrcFromPath(preview.path)} alt={mediaLabelFromPath(preview.path)} className="h-44 w-full object-cover" />
-          ) : (
-            <div className="flex h-36 items-center justify-center text-sm text-[var(--ui-text-2)]">
-              {mediaLabelFromPath(preview.path)}
-            </div>
-          )}
-          <figcaption className="flex items-center justify-between px-3 py-2 text-xs text-[var(--ui-text-2)]">
-            <span className="truncate">{mediaLabelFromPath(preview.path)}</span>
-            <MoreHorizontal className="h-4 w-4" />
-          </figcaption>
-        </figure>
+      {media.length > 0 ? (
+        <div className="space-y-3">
+          {media.map((m) => (
+            <figure key={m.id} className="overflow-hidden rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-bg-muted)]">
+              {m.type === "photo" ? (
+                <img src={mediaSrcFromPath(m.path)} alt={mediaLabelFromPath(m.path)} className="h-44 w-full object-cover" />
+              ) : (
+                <div className="flex h-36 items-center justify-center text-sm text-[var(--ui-text-2)]">
+                  {mediaLabelFromPath(m.path)}
+                </div>
+              )}
+              <figcaption className="flex items-center justify-between px-3 py-2 text-xs text-[var(--ui-text-2)]">
+                <span className="truncate">{mediaLabelFromPath(m.path)}</span>
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (confirm("Remove this image?")) {
+                      await deleteItemMedia.mutateAsync({ id: m.id, itemId: item.id });
+                      triggerHapticFeedback("medium");
+                    }
+                  }}
+                  className="rounded p-1 hover:bg-[var(--ui-danger-soft)] hover:text-[var(--ui-danger)]"
+                  title="Remove image"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </figcaption>
+            </figure>
+          ))}
+          <MediaUploader
+            onUploadSuccess={async (val) => {
+              await createItemMedia.mutateAsync({
+                id: nanoid(),
+                itemId: item.id,
+                type: val.type,
+                path: val.path,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              });
+              triggerHapticFeedback("success");
+            }}
+            buttonText="Add more images..."
+            className="w-full"
+          />
+        </div>
+      ) : (
+        <MediaUploader
+          onUploadSuccess={async (val) => {
+            await createItemMedia.mutateAsync({
+              id: nanoid(),
+              itemId: item.id,
+              type: val.type,
+              path: val.path,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+            triggerHapticFeedback("success");
+          }}
+          buttonText="Attach images or files"
+          className="w-full"
+        />
       )}
 
       <div className="space-y-6">
@@ -588,7 +642,7 @@ export function ProjectView({ workbenchId }: { workbenchId: string }) {
 
             {creationOpen && creationType && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-[rgba(34,27,21,0.28)] px-3 py-4 sm:px-6 sm:py-8">
-                <div className="max-h-full w-full max-w-[min(720px,calc(100vw-2rem))] overflow-y-auto rounded-[22px] border border-[var(--ui-border)] bg-[var(--ui-bg-card)] p-4 shadow-[var(--ui-shadow-2)] sm:p-6">
+                <div className="max-h-full w-full max-w-[min(720px,calc(100vw-2rem))] overflow-y-auto scrollbar-none rounded-[22px] border border-[var(--ui-border)] bg-[var(--ui-bg-card)] p-4 shadow-[var(--ui-shadow-2)] sm:p-6">
                   <div className="mb-5 flex items-center justify-between">
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-black/35">Create Item Flow</p>
@@ -668,7 +722,7 @@ export function ProjectView({ workbenchId }: { workbenchId: string }) {
 
             {tabletSheetExpanded && (
               <div
-                className="max-h-[calc(68svh-7rem)] overflow-y-auto px-4 pb-6"
+                className="max-h-[calc(68svh-7rem)] overflow-y-auto scrollbar-none px-4 pb-6"
                 onTouchStart={handlePanelTouchStart}
                 onTouchEnd={handlePanelTouchEnd}
               >

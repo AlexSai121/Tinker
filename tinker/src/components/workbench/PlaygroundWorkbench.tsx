@@ -36,6 +36,8 @@ import {
   MessageCircleQuestion,
   Sparkles,
   Import,
+  Copy,
+  ClipboardPaste,
 } from "lucide-react";
 import { mediaLabelFromPath } from "../../utils/media";
 import { CREATABLE_ITEM_TYPES } from "../../utils/constants";
@@ -326,7 +328,16 @@ export function PlaygroundWorkbench({
   const viewportRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const selectedItemId = useUiStore((state) => state.selectedItemId);
+  const selectedItemIds = useUiStore((state) => state.selectedItemIds);
   const selectItem = useUiStore((state) => state.selectItem);
+  const selectItems = useUiStore((state) => state.selectItems);
+  const toggleItemSelection = useUiStore((state) => state.toggleItemSelection);
+  const clearSelection = useUiStore((state) => state.clearSelection);
+  const clipboard = useUiStore((state) => state.clipboard);
+  const setClipboard = useUiStore((state) => state.setClipboard);
+  const pushHistory = useUiStore((state) => state.pushHistory);
+  const undo = useUiStore((state) => state.undo);
+  const redo = useUiStore((state) => state.redo);
   const openModal = useUiStore((state) => state.openModal);
   const createItem = useCreateItem();
   const createItemMedia = useCreateItemMedia();
@@ -342,7 +353,7 @@ export function PlaygroundWorkbench({
   const [camera, setCamera] = useState<BenchCamera>({ x: 32, y: 32, scale: 1 });
   const [cameraHydrated, setCameraHydrated] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ itemId: string; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: "item" | "canvas"; itemId?: string } | null>(null);
   const panStateRef = useRef<{ pointerId: number | null; startX: number; startY: number; originX: number; originY: number }>({
     pointerId: null,
     startX: 0,
@@ -453,6 +464,44 @@ export function PlaygroundWorkbench({
       selectItem(null);
     }
   }, [activeFilter, selectItem, selectedItem]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === "Backspace" || e.key === "Delete") {
+        if (selectedItemIds.length > 0) {
+          void handleDeleteSelected();
+        }
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "c") {
+        handleCopySelected();
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "v") {
+        void handlePaste(null); // Paste at center or last known point
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+        e.preventDefault();
+        selectItems(items.map((i) => i.id));
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "z") {
+        void redo();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        void undo();
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
+        void redo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedItemIds]);
 
   const autoPositions = useMemo(() => {
     const map = new Map<string, BenchPosition>();
@@ -651,11 +700,24 @@ export function PlaygroundWorkbench({
       surfaceHeight
     );
 
+    const oldPos = { x: startPosition.x, y: startPosition.y };
     setDraggingItemId(null);
     setLocalPositions((current) => ({
       ...current,
       [item.id]: nextPosition,
     }));
+
+    pushHistory({
+      label: `Move ${item.type}`,
+      undo: async () => {
+        await updateItemPosition.mutateAsync({ id: item.id, posX: oldPos.x, posY: oldPos.y });
+        setLocalPositions((curr) => ({ ...curr, [item.id]: oldPos }));
+      },
+      redo: async () => {
+        await updateItemPosition.mutateAsync({ id: item.id, posX: nextPosition.x, posY: nextPosition.y });
+        setLocalPositions((curr) => ({ ...curr, [item.id]: nextPosition }));
+      },
+    });
 
     await updateItemPosition.mutateAsync({
       id: item.id,
@@ -750,13 +812,97 @@ export function PlaygroundWorkbench({
     );
   }, [filteredItems, updateItemPosition]);
 
+  const handleDeleteSelected = useCallback(async () => {
+    if (selectedItemIds.length === 0) return;
+    const idsToDelete = [...selectedItemIds];
+    const itemsToDelete = items.filter((i) => idsToDelete.includes(i.id));
+
+    pushHistory({
+      label: `Delete ${itemsToDelete.length} items`,
+      undo: async () => {
+        await Promise.all(itemsToDelete.map((i) => createItem.mutateAsync(i)));
+        selectItems(itemsToDelete.map((i) => i.id));
+      },
+      redo: async () => {
+        await Promise.all(idsToDelete.map((id) => deleteItem.mutateAsync(id)));
+        clearSelection();
+      },
+    });
+
+    clearSelection();
+    setContextMenu(null);
+
+    await Promise.allSettled(idsToDelete.map((id) => deleteItem.mutateAsync(id)));
+    triggerHapticFeedback("medium");
+  }, [selectedItemIds, items, clearSelection, deleteItem, pushHistory, createItem, selectItems]);
+
+  const handleCopySelected = useCallback(() => {
+    if (selectedItemIds.length === 0) return;
+    const itemsToCopy = items.filter(i => selectedItemIds.includes(i.id));
+    setClipboard({
+      type: "items",
+      workbenchId,
+      data: itemsToCopy.map(i => ({
+        type: i.type,
+        content: i.content,
+        // We don't copy position exactly to allow offset pasting
+        posX: i.posX,
+        posY: i.posY,
+      }))
+    });
+    triggerHapticFeedback("light");
+    setContextMenu(null);
+  }, [selectedItemIds, items, workbenchId, setClipboard]);
+
+  const handlePaste = useCallback(async (point: BenchPosition | null) => {
+    if (!clipboard || clipboard.type !== "items") return;
+    
+    const now = new Date();
+    const newItems = clipboard.data.map((template, index) => {
+      const id = nanoid();
+      const offset = index * 20;
+      // If no point, use template position + offset
+      const x = (point?.x ?? template.posX) + (point ? offset : 40);
+      const y = (point?.y ?? template.posY) + (point ? offset : 40);
+      
+      return {
+        ...template,
+        id,
+        workbenchId,
+        posX: x,
+        posY: y,
+        createdAt: now,
+        updatedAt: now,
+      };
+    });
+
+    setContextMenu(null);
+    await Promise.allSettled(newItems.map((item) => createItem.mutateAsync(item)));
+
+    pushHistory({
+      label: `Paste ${newItems.length} items`,
+      undo: async () => {
+        await Promise.all(newItems.map((i) => deleteItem.mutateAsync(i.id)));
+        clearSelection();
+      },
+      redo: async () => {
+        await Promise.all(newItems.map((i) => createItem.mutateAsync(i)));
+        selectItems(newItems.map((i) => i.id));
+      },
+    });
+
+    // Select the new items
+    selectItems(newItems.map((i) => i.id));
+    triggerHapticFeedback("success");
+  }, [clipboard, workbenchId, createItem, selectItems, pushHistory, deleteItem, clearSelection]);
+
   const handleDeleteSelectedItem = useCallback(async (itemId: string) => {
     setContextMenu(null);
     await deleteItem.mutateAsync(itemId);
-    if (selectedItemId === itemId) {
-      selectItem(null);
+    if (selectedItemIds.includes(itemId)) {
+      toggleItemSelection(itemId);
     }
-  }, [deleteItem, selectItem, selectedItemId]);
+  }, [deleteItem, selectedItemIds, toggleItemSelection]);
 
   const selectedContextItem = useMemo(
     () => items.find((item) => item.id === contextMenu?.itemId) ?? null,
@@ -828,6 +974,16 @@ export function PlaygroundWorkbench({
         onPointerCancel={handleViewportPointerUp}
         onWheel={handleViewportWheel}
         onDoubleClick={(event) => void handleViewportDoubleClick(event)}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          const rect = viewportRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          setContextMenu({ 
+            type: "canvas", 
+            x: event.clientX - rect.left, 
+            y: event.clientY - rect.top,
+          });
+        }}
       >
         <motion.div
           ref={surfaceRef}
@@ -880,14 +1036,27 @@ export function PlaygroundWorkbench({
               onDragEnd={(_, info) => void handleDragEnd(item, position, info)}
               onPointerDown={(event) => {
                 event.stopPropagation();
-                selectItem(item.id);
+                if (event.shiftKey || event.metaKey || event.ctrlKey) {
+                  toggleItemSelection(item.id);
+                } else if (!selectedItemIds.includes(item.id)) {
+                  selectItem(item.id);
+                }
                 setContextMenu(null);
               }}
               onContextMenu={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                selectItem(item.id);
-                setContextMenu({ itemId: item.id, x: event.clientX, y: event.clientY });
+                if (!selectedItemIds.includes(item.id)) {
+                  selectItem(item.id);
+                }
+                const rect = viewportRef.current?.getBoundingClientRect();
+                if (!rect) return;
+                setContextMenu({ 
+                  type: "item", 
+                  itemId: item.id, 
+                  x: event.clientX - rect.left, 
+                  y: event.clientY - rect.top 
+                });
               }}
               className={cn(
                 "absolute left-0 top-0 touch-none transition-shadow",
@@ -900,7 +1069,7 @@ export function PlaygroundWorkbench({
               <div
                 className={cn(
                   "rounded-[var(--ui-radius-md)] transition-all",
-                  selectedItemId === item.id && "selected-workbench-item"
+                  selectedItemIds.includes(item.id) && "selected-workbench-item"
                 )}
               >
                 <WorkbenchBenchItem item={item} autoFocusSticky={focusedStickyId === item.id} />
@@ -941,39 +1110,91 @@ export function PlaygroundWorkbench({
         </button>
       </div>
 
-      {contextMenu && selectedContextItem && (
+       {contextMenu && (
         <div
           className="absolute z-30 min-w-52 rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-elevated)] p-1 shadow-[var(--ui-shadow-2)]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
+          style={{ 
+            left: contextMenu.x, 
+            top: contextMenu.y,
+            transform: (contextMenu.x > (viewportRef.current?.clientWidth ?? 0) - 220) ? "translateX(-100%)" : "none"
+          }}
         >
-          <button
-            type="button"
-            onClick={() => {
-              setContextMenu(null);
-              selectItem(selectedContextItem.id);
-            }}
-            className="block w-full rounded-[var(--ui-radius-sm)] px-3 py-2 text-left text-sm text-[var(--ui-text-2)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text-1)]"
-          >
-            Focus Card
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setContextMenu(null);
-              openModal({ type: "createBridge", payload: { sourceItemId: selectedContextItem.id } });
-            }}
-            className="block w-full rounded-[var(--ui-radius-sm)] px-3 py-2 text-left text-sm text-[var(--ui-text-2)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text-1)]"
-          >
-            Create Bridge
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleDeleteSelectedItem(selectedContextItem.id)}
-            className="flex w-full items-center gap-2 rounded-[var(--ui-radius-md)] px-3 py-2 text-left text-sm text-[var(--ui-danger)] hover:bg-[var(--ui-danger-soft)]"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete Card
-          </button>
+          {contextMenu.type === "item" ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setContextMenu(null);
+                  selectItem(contextMenu.itemId!);
+                }}
+                className="block w-full rounded-[var(--ui-radius-sm)] px-3 py-2 text-left text-sm text-[var(--ui-text-2)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text-1)]"
+              >
+                Focus Card
+              </button>
+              <button
+                type="button"
+                onClick={handleCopySelected}
+                className="flex w-full items-center gap-2 rounded-[var(--ui-radius-sm)] px-3 py-2 text-left text-sm text-[var(--ui-text-2)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text-1)]"
+              >
+                <Copy className="h-4 w-4" />
+                Copy {selectedItemIds.length > 1 ? `(${selectedItemIds.length})` : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setContextMenu(null);
+                  openModal({ type: "createBridge", payload: { sourceItemId: contextMenu.itemId } });
+                }}
+                className="block w-full rounded-[var(--ui-radius-sm)] px-3 py-2 text-left text-sm text-[var(--ui-text-2)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text-1)]"
+              >
+                Create Bridge
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                className="flex w-full items-center gap-2 rounded-[var(--ui-radius-md)] px-3 py-2 text-left text-sm text-[var(--ui-danger)] hover:bg-[var(--ui-danger-soft)]"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete {selectedItemIds.length > 1 ? `(${selectedItemIds.length}) items` : "Card"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={!clipboard}
+                onClick={() => {
+                  const point = resolveSurfacePoint(contextMenu.x, contextMenu.y);
+                  void handlePaste(point);
+                }}
+                className="flex w-full items-center gap-2 rounded-[var(--ui-radius-sm)] px-3 py-2 text-left text-sm text-[var(--ui-text-2)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text-1)] disabled:opacity-50"
+              >
+                <ClipboardPaste className="h-4 w-4" />
+                Paste {clipboard?.data.length ? `(${clipboard.data.length})` : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setContextMenu(null);
+                  const point = resolveSurfacePoint(contextMenu.x, contextMenu.y);
+                  if (point) void handleCreateSticky(point);
+                }}
+                className="block w-full rounded-[var(--ui-radius-sm)] px-3 py-2 text-left text-sm text-[var(--ui-text-2)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text-1)]"
+              >
+                Add Sticky Note
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setContextMenu(null);
+                  clearSelection();
+                }}
+                className="block w-full rounded-[var(--ui-radius-sm)] px-3 py-2 text-left text-sm text-[var(--ui-text-2)] hover:bg-[var(--ui-surface-2)] hover:text-[var(--ui-text-1)]"
+              >
+                Clear Selection
+              </button>
+            </>
+          )}
         </div>
       )}
 

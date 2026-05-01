@@ -75,6 +75,7 @@ export function MediaCard({ item, media, scars }: Props) {
             alt={label}
             loading="lazy"
             decoding="async"
+            draggable="false"
             className="h-44 w-full object-cover"
           />
         ) : (

@@ -18,6 +18,12 @@ export type ViewMode =
 
 export type ProjectViewMode = "board" | "timeline" | "gallery";
 
+export interface HistoryCommand {
+  label: string;
+  undo: () => void | Promise<void>;
+  redo: () => void | Promise<void>;
+}
+
 interface UiState {
   // Navigation
   activeShopId: string | null;
@@ -27,6 +33,7 @@ interface UiState {
 
   // Selection
   selectedItemId: string | null;
+  selectedItemIds: string[];
   selectedSkillId: string | null;
 
   // Modals
@@ -49,12 +56,22 @@ interface UiState {
   // Theme (for non-CSS contexts like Konva canvas)
   resolvedTheme: "light" | "dark";
 
+  // Clipboard
+  clipboard: { type: "items"; workbenchId: string; data: any[] } | null;
+
+  // History
+  historyPast: HistoryCommand[];
+  historyFuture: HistoryCommand[];
+
   // Actions
   setActiveShop: (id: string | null) => void;
   setActiveWorkbench: (id: string | null) => void;
   setViewMode: (mode: ViewMode) => void;
   setProjectView: (mode: ProjectViewMode) => void;
   selectItem: (id: string | null) => void;
+  selectItems: (ids: string[]) => void;
+  toggleItemSelection: (id: string) => void;
+  clearSelection: () => void;
   selectSkill: (id: string | null) => void;
   openModal: (modal: ModalState) => void;
   closeModal: () => void;
@@ -68,6 +85,10 @@ interface UiState {
   completeOnboarding: () => void;
   startTour: () => void;
   stopTour: () => void;
+  setClipboard: (clipboard: { type: "items"; workbenchId: string; data: any[] } | null) => void;
+  pushHistory: (command: HistoryCommand) => void;
+  undo: () => Promise<void>;
+  redo: () => Promise<void>;
   resetUi: () => void;
 }
 
@@ -77,6 +98,7 @@ const initialUiState = {
   viewMode: "workbench" as ViewMode,
   projectView: "board" as ProjectViewMode,
   selectedItemId: null,
+  selectedItemIds: [],
   selectedSkillId: null,
   modalStack: [],
   searchQuery: "",
@@ -86,6 +108,9 @@ const initialUiState = {
   onboardingCompleted: false,
   tourActive: false,
   resolvedTheme: "light" as "light" | "dark",
+  clipboard: null,
+  historyPast: [],
+  historyFuture: [],
 };
 
 const UI_STORE_PERSIST_KEY = "tinker-ui-store";
@@ -128,10 +153,11 @@ export const useUiStore = create<UiState>()(
             viewMode: "workbench",
             projectView: "board",
             selectedItemId: null,
+            selectedItemIds: [],
           }),
 
         setActiveWorkbench: (id) =>
-          set({ activeWorkbenchId: id, viewMode: "project", projectView: "board", selectedItemId: null }),
+          set({ activeWorkbenchId: id, viewMode: "project", projectView: "board", selectedItemId: null, selectedItemIds: [] }),
 
         setViewMode: (mode) =>
           set((state) => ({
@@ -141,7 +167,23 @@ export const useUiStore = create<UiState>()(
 
         setProjectView: (mode) => set({ projectView: mode }),
 
-        selectItem: (id) => set({ selectedItemId: id }),
+        selectItem: (id) =>
+          set((state) => ({
+            selectedItemId: id,
+            selectedItemIds: id ? (state.selectedItemIds.includes(id) ? state.selectedItemIds : [id]) : [],
+          })),
+        selectItems: (ids) => set({ selectedItemIds: ids, selectedItemId: ids.length === 1 ? ids[0] : null }),
+        toggleItemSelection: (id) =>
+          set((state) => {
+            const next = state.selectedItemIds.includes(id)
+              ? state.selectedItemIds.filter((i) => i !== id)
+              : [...state.selectedItemIds, id];
+            return {
+              selectedItemIds: next,
+              selectedItemId: next.length === 1 ? next[0] : null,
+            };
+          }),
+        clearSelection: () => set({ selectedItemIds: [], selectedItemId: null }),
         selectSkill: (id) => set({ selectedSkillId: id }),
 
         openModal: (modal) =>
@@ -167,6 +209,32 @@ export const useUiStore = create<UiState>()(
         completeOnboarding: () => set({ onboardingCompleted: true }),
         startTour: () => set({ tourActive: true, onboardingCompleted: true }),
         stopTour: () => set({ tourActive: false }),
+        setClipboard: (clipboard) => set({ clipboard }),
+        pushHistory: (command) =>
+          set((state) => ({
+            historyPast: [command, ...state.historyPast].slice(0, 50),
+            historyFuture: [],
+          })),
+        undo: async () => {
+          const state = useUiStore.getState();
+          if (state.historyPast.length === 0) return;
+          const [command, ...rest] = state.historyPast;
+          await command.undo();
+          set({
+            historyPast: rest,
+            historyFuture: [command, ...state.historyFuture],
+          });
+        },
+        redo: async () => {
+          const state = useUiStore.getState();
+          if (state.historyFuture.length === 0) return;
+          const [command, ...rest] = state.historyFuture;
+          await command.redo();
+          set({
+            historyPast: [command, ...state.historyPast],
+            historyFuture: rest,
+          });
+        },
 
         resetUi: () => {
           getUiStorage().removeItem(UI_STORE_PERSIST_KEY);

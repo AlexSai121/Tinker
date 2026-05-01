@@ -983,6 +983,13 @@ button {
       0 0 0 2px color-mix(in srgb, var(--ui-accent) 70%, transparent),
       0 0 0 5px color-mix(in srgb, var(--ui-bg-workbench) 92%, transparent);
   }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 @keyframes modalOverlayIn {

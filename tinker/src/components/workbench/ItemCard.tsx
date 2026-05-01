@@ -162,6 +162,7 @@ export function ItemCard({ item, media, scars }: Props) {
                   alt={mediaLabelFromPath(m.path)}
                   loading="lazy"
                   decoding="async"
+                  draggable="false"
                   className="h-24 w-full object-cover"
                 />
               ) : (
